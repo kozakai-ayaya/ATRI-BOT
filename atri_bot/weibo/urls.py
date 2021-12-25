@@ -5,4 +5,5 @@ API_PERFIX = BASE_URL + 'api/'
 
 UPLOAD_IMAGE = API_PERFIX + 'statuses/uploadPic'
 SEND_WEIBO = API_PERFIX + 'statuses/update'
+DELETE_WEIBO = BASE_URL + 'profile/delMyblog'
 CONFIG = API_PERFIX + 'config'

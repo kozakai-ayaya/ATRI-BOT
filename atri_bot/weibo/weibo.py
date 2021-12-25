@@ -1,13 +1,15 @@
+import datetime
 import functools
 import json
 import pickle
-import datetime
 from os import PathLike
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Union
 
 import requests
 
+from ..errors import UnexpectedResponseException
+from ..utils import HTTPAdapter
 from . import urls
 
 DEAFULT_HEADER = {
@@ -25,22 +27,42 @@ def encode_compose_refer(image_ids: List[str]):
 
 
 def set_referer(url, override=True):
-    def wrapper(func):
+    def wrapper_maker(func):
         @functools.wraps(func)
-        def wrapped_func(self, *args, **kwargs):
+        def wrapper(*args, **kwargs):
+            self = args[0]
             origin_referer = self.session.headers.get('referer')
             if not override and origin_referer:
                 return func(self, *args, **kwargs)
             self.session.headers['referer'] = url
             try:
-                return func(self, *args, **kwargs)
+                return func(*args, **kwargs)
             finally:
                 if origin_referer:
                     self.session.headers['referer'] = origin_referer
                 else:
                     self.session.headers.pop('referer')
-        return wrapped_func
-    return wrapper
+        return wrapper
+    return wrapper_maker
+
+
+def json_response(check_ok=True):
+    def wrapper_maker(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            response = func(*args, **kwargs)
+            e = UnexpectedResponseException(response)
+            try:
+                response_json = response.json()
+            except:
+                raise e
+            if check_ok:
+                if response_json['ok'] != 1:
+                    raise e
+                response_json = response_json.get('data') or response_json.get('msg')
+            return response_json
+        return wrapper
+    return wrapper_maker
 
 
 class WeiboAuth(requests.auth.AuthBase):
@@ -52,7 +74,13 @@ class WeiboAuth(requests.auth.AuthBase):
         return r
 
 
-class WeiboApi:
+class WeiboVisible:
+    EVERYONE = '0'
+    ONLY_TO_YOURSELF = '1'
+    ONLY_TO_FRIEND = '6'
+
+
+class WeiboAPI:
     def __init__(self):
         self.session = requests.Session()
         self._prepare_session()
@@ -63,6 +91,7 @@ class WeiboApi:
     def _prepare_session(self):
         self.session.headers.update(DEAFULT_HEADER)
         self.session.auth = WeiboAuth(self)
+        self.session.mount("http://", HTTPAdapter(timeout=10))
 
     @classmethod
     def load_from_cookies_str(cls, cookies_str: str):
@@ -72,9 +101,9 @@ class WeiboApi:
             cookies_str (str): HTTP头中的cookies字段值
 
         Returns:
-            WeiboApi:
+            WeiboAPI:
         """
-        instance = WeiboApi()
+        instance = WeiboAPI()
         cookies_jar = instance.session.cookies
         for c in cookies_str.split(';'):
             k, v = c.split("=")
@@ -101,7 +130,7 @@ class WeiboApi:
         Args:
             path (str): json读取路径
         """
-        instance = WeiboApi()
+        instance = WeiboAPI()
         with open(path, 'r') as fp:
             cookies = requests.utils.cookiejar_from_dict(json.load(fp))
             instance.session.cookies.update(cookies)
@@ -123,10 +152,10 @@ class WeiboApi:
         Args:
             path (str): cookiesjar二进制格式读取路径
         """
-        instance = WeiboApi()
+        instance = WeiboAPI()
         with open(path, 'rb') as fp:
             cookies = pickle.load(fp)
-        
+
         instance.session.cookies.update(cookies)
         _ = instance.config
         return instance
@@ -138,14 +167,13 @@ class WeiboApi:
         if self._config and self._config_update_time - datetime.datetime.now() < datetime.timedelta(minutes=5):
             return self._config
         self._config = self._get_config()
+        self._config_update_time = datetime.datetime.now()
         return self._config
 
     @set_referer(urls.BASE_URL)
+    @json_response()
     def _get_config(self):
-        config_json = self.session.get(urls.CONFIG).json()
-        assert config_json['ok'] == 1
-        self._config_update_time = datetime.datetime.now()
-        return config_json['data']
+        return self.session.get(urls.CONFIG)
 
     @property
     def st(self):
@@ -160,7 +188,12 @@ class WeiboApi:
         return self.config['uid']
 
     @set_referer(urls.COMPOSE_REFERER_BASE)
-    def send_weibo(self, text: str, image_paths: Optional[Iterable[PathLike]] = None):
+    @json_response()
+    def send_weibo(self,
+                   text: str,
+                   image_paths: Optional[Iterable[PathLike]] = None,
+                   visible: str = WeiboVisible.EVERYONE
+                   ):
         """发送微博
 
         Args:
@@ -173,23 +206,36 @@ class WeiboApi:
         data = {
             'content': text,
             'st': self.st,
-            # '_spr':
+            '_spr': 'screen:400x629'
         }
+        if visible != WeiboVisible.EVERYONE:
+            data['visible'] = visible
 
         if not image_paths is None:
             uploaded_image_ids = []
             for image_path in image_paths:
-                uploaded_image_ids.append(self.upload_image(image_path)['pic_id'])
+                uploaded_image_ids.append(
+                    self.upload_image(image_path)['pic_id'])
                 self.session.headers['referer'] = encode_compose_refer(
                     uploaded_image_ids)
             data["picId"] = ','.join(uploaded_image_ids)
 
         # TODO: 'visible'
-        response = self.session.post(urls.SEND_WEIBO, data=data)
-        response.raise_for_status()
-        return response.json()
+        return self.session.post(urls.SEND_WEIBO, data=data)
+
+    @json_response()
+    def delete_weibo(self, weibo_id: Union[str, int]):
+        if isinstance(weibo_id, int):
+            weibo_id = str(weibo_id)
+        data = {
+            'mid': weibo_id,
+            'st': self.st,
+            '_spr': 'screen:400x629'
+        }
+        return self.session.post(urls.DELETE_WEIBO, data=data, headers={'referer': f'{urls.BASE_URL}detail/{weibo_id}'})
 
     @set_referer(urls.COMPOSE_REFERER_BASE, override=False)
+    @json_response(check_ok=False)
     def upload_image(self, image_path: str):
         """上传图片到微博图床。通常不用手动调用此方法。
 
@@ -219,5 +265,4 @@ class WeiboApi:
                     'image/jpeg'
                 )},
         )
-        response.raise_for_status()
-        return response.json()
+        return response
