@@ -33,7 +33,7 @@ def set_referer(url, override=True):
             self = args[0]
             origin_referer = self.session.headers.get('referer')
             if not override and origin_referer:
-                return func(self, *args, **kwargs)
+                return func(*args, **kwargs)
             self.session.headers['referer'] = url
             try:
                 return func(*args, **kwargs)
@@ -46,23 +46,22 @@ def set_referer(url, override=True):
     return wrapper_maker
 
 
-def json_response(check_ok=True):
-    def wrapper_maker(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            response = func(*args, **kwargs)
-            e = UnexpectedResponseException(response)
-            try:
-                response_json = response.json()
-            except:
-                raise e
-            if check_ok:
-                if response_json['ok'] != 1:
-                    raise e
-                response_json = response_json.get('data') or response_json.get('msg')
-            return response_json
-        return wrapper
-    return wrapper_maker
+def json_response(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        self = args[0]
+        _ = self.config # update xsrf token
+        response = func(*args, **kwargs)
+        e = UnexpectedResponseException(response)
+        try:
+            response_json = response.json()
+        except:
+            raise e
+        if response_json.get('ok') is not None and response_json['ok'] != 1:
+            raise e
+        response_json = response_json.get('data') or response_json.get('msg') or response_json
+        return response_json
+    return wrapper
 
 
 class WeiboAuth(requests.auth.AuthBase):
@@ -157,7 +156,6 @@ class WeiboAPI:
             cookies = pickle.load(fp)
 
         instance.session.cookies.update(cookies)
-        _ = instance.config
         return instance
 
     @property
@@ -171,7 +169,7 @@ class WeiboAPI:
         return self._config
 
     @set_referer(urls.BASE_URL)
-    @json_response()
+    @json_response
     def _get_config(self):
         return self.session.get(urls.CONFIG)
 
@@ -188,7 +186,7 @@ class WeiboAPI:
         return self.config['uid']
 
     @set_referer(urls.COMPOSE_REFERER_BASE)
-    @json_response()
+    @json_response
     def send_weibo(self,
                    text: str,
                    image_paths: Optional[Iterable[PathLike]] = None,
@@ -223,7 +221,7 @@ class WeiboAPI:
         # TODO: 'visible'
         return self.session.post(urls.SEND_WEIBO, data=data)
 
-    @json_response()
+    @json_response
     def delete_weibo(self, weibo_id: Union[str, int]):
         if isinstance(weibo_id, int):
             weibo_id = str(weibo_id)
@@ -235,7 +233,7 @@ class WeiboAPI:
         return self.session.post(urls.DELETE_WEIBO, data=data, headers={'referer': f'{urls.BASE_URL}detail/{weibo_id}'})
 
     @set_referer(urls.COMPOSE_REFERER_BASE, override=False)
-    @json_response(check_ok=False)
+    @json_response
     def upload_image(self, image_path: str):
         """上传图片到微博图床。通常不用手动调用此方法。
 
