@@ -9,7 +9,6 @@ from typing import Iterable, List, Optional, Union
 import requests
 
 from ..errors import UnexpectedResponseException
-from ..utils import HTTPAdapter
 from . import urls
 
 DEAFULT_HEADER = {
@@ -50,13 +49,12 @@ def json_response(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         self = args[0]
-        _ = self.config # update xsrf token
         response = func(*args, **kwargs)
         e = UnexpectedResponseException(response)
         try:
             response_json = response.json()
-        except:
-            raise e
+        except Exception as inner_e:
+            raise e from inner_e
         if response_json.get('ok') is not None and response_json['ok'] != 1:
             raise e
         response_json = response_json.get('data') or response_json.get('msg') or response_json
@@ -78,6 +76,7 @@ class WeiboVisible:
     ONLY_TO_YOURSELF = '1'
     ONLY_TO_FRIEND = '6'
 
+SPR = 'screen:400x629'
 
 class WeiboAPI:
     def __init__(self):
@@ -90,7 +89,6 @@ class WeiboAPI:
     def _prepare_session(self):
         self.session.headers.update(DEAFULT_HEADER)
         self.session.auth = WeiboAuth(self)
-        self.session.mount("http://", HTTPAdapter(timeout=10))
 
     @classmethod
     def load_from_cookies_str(cls, cookies_str: str):
@@ -162,6 +160,7 @@ class WeiboAPI:
     def config(self):
         """获取登录信息，更新xsrf token，通常没有必要读取这个字段，可以直接使用is_login，st，uid字段。
         """
+        # TODO: 其实某种情况下需要手动更新，考虑怎么样自动化该流程。
         if self._config and self._config_update_time - datetime.datetime.now() < datetime.timedelta(minutes=5):
             return self._config
         self._config = self._get_config()
@@ -204,7 +203,7 @@ class WeiboAPI:
         data = {
             'content': text,
             'st': self.st,
-            '_spr': 'screen:400x629'
+            '_spr': SPR
         }
         if visible != WeiboVisible.EVERYONE:
             data['visible'] = visible
@@ -221,6 +220,7 @@ class WeiboAPI:
         # TODO: 'visible'
         return self.session.post(urls.SEND_WEIBO, data=data)
 
+    # handle referer in post method
     @json_response
     def delete_weibo(self, weibo_id: Union[str, int]):
         if isinstance(weibo_id, int):
@@ -228,7 +228,7 @@ class WeiboAPI:
         data = {
             'mid': weibo_id,
             'st': self.st,
-            '_spr': 'screen:400x629'
+            '_spr': SPR
         }
         return self.session.post(urls.DELETE_WEIBO, data=data, headers={'referer': f'{urls.BASE_URL}detail/{weibo_id}'})
 
@@ -254,7 +254,7 @@ class WeiboAPI:
             data={
                 'type': 'json',
                 'st': self.st,
-                # TODO _spr: screen:1536x864
+                '_spr': SPR
             },
             files={
                 'pic': (
