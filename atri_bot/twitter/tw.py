@@ -39,32 +39,51 @@ def users_tweets(usernames, max_results=10, end_time=None):
             It is possible to receive less than the ``max_results`` per request
             throughout the pagination process.
     """
-    tweets = []
+    results = []
     for user in users(usernames):
         uid = user.get('id')
-        _tweets = client.get_users_tweets(id=uid, max_results=max_results, end_time=end_time)
-        if _tweets.data is not None:
-            for tweet in _tweets.data:
-                tweets.append({
+        tweets = client.get_users_tweets(
+            id=uid, max_results=max_results, end_time=end_time, 
+            tweet_fields=['created_at', 'entities'],
+            media_fields=['media_key', 'duration_ms', 'preview_image_url', 'url', 'type', 'height', 'width'],
+            exclude=['retweets', 'replies'],
+            expansions=['attachments.media_keys']
+        )
+
+        media = tweets.includes.get('media') if tweets.includes is not None else None
+
+        if tweets.data is not None:
+            for tweet in tweets.data:
+
+                media_keys = tweet.attachments.get('media_keys') if tweet.attachments is not None else None
+
+                media_filter = []
+                if media_keys is not None and media is not None:
+                    for media_key in media_keys:
+                        for m in media:
+                            if m.media_key == media_key:
+                                media_filter.append(m.data)
+                                break
+
+                results.append({
                     'text': tweet.text,
                     'tid': tweet.id,
                     'uid': uid,
-                    'username': user.get('username'),
-                    'user_nickname': user.get('user_nickname')
+                    'user': user,
+                    'media': media_filter,
+                    'created_at': tweet.created_at,
+                    'hashtags': tweet.entities.get('hashtags') if tweet.entities is not None else None,
                 })
-    return tweets
+    return results
 
 
 def users(usernames):
-    users = client.get_users(usernames=usernames)
+    users = client.get_users(usernames=usernames, user_fields=['profile_image_url', 'description'])
     user_list = []
     if users.data is not None:
         for user in users.data:
-            user_list.append({
-                'id': user.id,
-                'username': user.username,
-                'user_nickname': user.name
-            })
+            if user.data is not None:
+                user_list.append(user.data)
     return user_list
 
 
@@ -93,7 +112,7 @@ def _do_observe_tweets(usernames, function, interval=10, max_results=10, end_tim
 
 
 def test():
-    usernames = ['moke14', 'Genshin_7']
+    usernames = ['Genshin_7', 'moke14']
 
     print('test')
     start_observe_tweets(usernames, lambda tweets: print(tweets))
