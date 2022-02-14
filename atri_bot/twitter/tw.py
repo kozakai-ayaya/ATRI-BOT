@@ -1,4 +1,6 @@
 
+from threading import Timer
+from tkinter.messagebox import NO
 import tweepy
 
 try:
@@ -8,6 +10,9 @@ try:
 except:
     print('please create config.py in twitter folder whitch contains bearer_token and proxy')
     pass
+
+
+timer = None
 
 
 def users_tweets(usernames, max_results=10, end_time=None):
@@ -38,30 +43,63 @@ def users_tweets(usernames, max_results=10, end_time=None):
     tweets = []
     for user in users(usernames):
         uid = user.get('id')
-        username = user.get('username')
         _tweets = client.get_users_tweets(id=uid, max_results=max_results, end_time=end_time)
-        for tweet in _tweets.data:
-            tweets.append({
-                'text': tweet.text,
-                'tid': tweet.id,
-                'uid': uid,
-                'username': username
-            })
+        if _tweets.data is not None:
+            for tweet in _tweets.data:
+                tweets.append({
+                    'text': tweet.text,
+                    'tid': tweet.id,
+                    'uid': uid,
+                    'username': user.get('username'),
+                    'user_nickname': user.get('user_nickname')
+                })
     return tweets
 
 
 def users(usernames):
     users = client.get_users(usernames=usernames)
     user_list = []
-    for user in users.data:
-        user_list.append({
-            'id': user.id,
-            'username': user.username
-        })
+    if users.data is not None:
+        for user in users.data:
+            user_list.append({
+                'id': user.id,
+                'username': user.username,
+                'user_nickname': user.name
+            })
     return user_list
 
 
-def test():
-    for tweet in users_tweets(['Friends___A'], max_results=15):
-        print(tweet)
+def start_observe_tweets(usernames, function, interval=10, max_results=10, end_time=None):
+    stop_observe_tweets()
 
+    global timer
+    timer = Timer(interval=interval, function=_do_observe_tweets, args=(usernames, function, interval, max_results, end_time))
+    timer.start()
+
+
+def stop_observe_tweets():
+    global timer
+    if timer is not None:
+        timer.cancel()
+        timer = None
+
+
+def _do_observe_tweets(usernames, function, interval=10, max_results=10, end_time=None):
+    function(users_tweets(usernames=usernames, max_results=max_results, end_time=end_time))
+    
+    global timer
+    if timer is None:
+        return
+    start_observe_tweets(usernames=usernames, function=function, interval=interval, max_results=max_results, end_time=end_time)
+
+
+def test():
+    usernames = ['moke14', 'Genshin_7']
+
+    print('test')
+    start_observe_tweets(usernames, lambda tweets: print(tweets))
+    print('pop stack: test')
+
+
+if __name__ == "__main__":
+    test()
