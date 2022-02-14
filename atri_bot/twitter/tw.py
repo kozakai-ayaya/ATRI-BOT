@@ -1,6 +1,5 @@
 
 from threading import Timer
-from tkinter.messagebox import NO
 import tweepy
 
 try:
