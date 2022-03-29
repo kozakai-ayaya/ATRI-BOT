@@ -36,11 +36,24 @@ class Connect(object):
         message.new(**kwargs).insert()
 
     @staticmethod
+    def get_message_info_by_status(status):
+        get_info = message.select().where_raw("status = %(input_status)s").get({"input_status": status})
+        return get_info
+
+    @staticmethod
     def get_message_info_by_username_and_status(username, status):
         get_info = message.select() \
             .where_raw("username = %(input_username)s AND status = %(input_status)s") \
             .get({"input_username": username, "input_status": status})
         return get_info
+
+    @staticmethod
+    def update_message_info_by_status(status, info_dict):
+        new_info = message.select() \
+            .where_raw("status = %(input_status)s").get({"input_status": status})
+        for k, v in info_dict.items():
+            new_info[k] = v
+        new_info.update()
 
     @staticmethod
     def update_message_info_by_username_and_status(username, status, info_dict):
@@ -61,10 +74,9 @@ class Connect(object):
         return get_info
 
     @staticmethod
-    def update_spider_user_info(username, status, info_dict):
+    def update_spider_user_info(username, info_dict):
         new_info = spider_user.select() \
-            .where_raw("username = %(input_username)s AND status = %(input_status)s") \
-            .get({"input_username": username, "input_status": status})
+            .where_raw("username = %(input_username)s").get({"input_username": username})
         for k, v in info_dict.items():
             new_info[k] = v
         new_info.update()

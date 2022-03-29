@@ -8,6 +8,7 @@
 @time    : 2022/3/25 9:11 下午
 """
 import json
+import time
 
 import pymysql
 from typing import List
@@ -42,6 +43,10 @@ class ProcessingCore(object):
     def _check_spider_update_status(self) -> list:
         need_update_spider_user_list = []
         spider_user_info_in_db = [username for username in self.connect.get_spider_user_info()["username"]]
+
+        for username in spider_user_info_in_db:
+            update_dict = {"last_check_time": time.time()}
+            self.connect.update_spider_user_info(username=username, info_dict=update_dict)
 
         for spider_user_info in self.spider_user_list:
             if spider_user_info not in spider_user_info_in_db:
@@ -119,8 +124,10 @@ class ProcessingCore(object):
                 media_url=text_info.get("media").get("url"),
                 media_key=text_info.get("media").get("type"),
                 media_path=self._save_media_file(text_info.get("media").get("url"), text_info.get("media").get("type")),
-                status=False,
+                status=0,
+                enter_time=time.time()
             )
+
 
     def get_message(self):
         self.spider_user_list = self._read_user_list_in_txt()
@@ -128,5 +135,13 @@ class ProcessingCore(object):
 
         if len(need_update_spider_user_list) != 0:
             start_observe_tweets(self.spider_user_list,
-                                 lambda tweets: self.update_new_spider_user_info(need_update_spider_user_list, tweets))
+                                 lambda twitters: self.update_new_spider_user_info(need_update_spider_user_list,
+                                                                                   twitters))
+
+        start_observe_tweets(self._read_user_list_in_txt(), lambda twitters: self.update_new_text_info(twitters))
+
+    def send_message(self):
+        need_send_message_list = self.connect.get_message_info_by_status(status=0)
+        self.connect.update_message_info_by_status(status=0, info_dict={"send_time": time.time()})
+        return need_send_message_list
 
