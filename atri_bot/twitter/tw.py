@@ -14,14 +14,18 @@ except:
 timer = None
 
 
-def users_tweets(usernames, max_results=10, end_time=None):
+def get_users_tweets(users=None, usernames=None, uids=None, max_results=10, end_time=None):
     """
     获取用户最近的推特
 
     Parameters
         ----------
+        users : List[User]
+            用户列表 通过 get_users 方法获取 通过此参数获取推特，内部可以减少一次请求
         usernames : List[str]
             用户名列表, 用户名是推特的唯一名称, 不是用户昵称
+        uids : List[str]
+            用户名uid 列表
         end_time : Union[datetime.datetime, str]
             YYYY-MM-DDTHH:mm:ssZ (ISO 8601/RFC 3339). The newest or most recent
             UTC timestamp from which the Tweets will be provided. Only the 3200
@@ -40,7 +44,10 @@ def users_tweets(usernames, max_results=10, end_time=None):
             throughout the pagination process.
     """
     results = []
-    for user in users(usernames):
+    if users is None:
+        users = get_users(usernames=usernames, uids=uids)
+
+    for user in users:
         uid = user.get('id')
         tweets = client.get_users_tweets(
             id=uid, max_results=max_results, end_time=end_time, 
@@ -77,8 +84,8 @@ def users_tweets(usernames, max_results=10, end_time=None):
     return results
 
 
-def users(usernames):
-    users = client.get_users(usernames=usernames, user_fields=['profile_image_url', 'description'])
+def get_users(usernames=None, uids=None):
+    users = client.get_users(usernames=usernames, ids=uids, user_fields=['profile_image_url', 'description'])
     user_list = []
     if users.data is not None:
         for user in users.data:
@@ -87,11 +94,15 @@ def users(usernames):
     return user_list
 
 
-def start_observe_tweets(usernames, function, interval=10, max_results=10, end_time=None):
+def get_user_ids(users=None, usernames=None):
+    return [user.get('id') for user in (users if users is not None else get_users(usernames=usernames))]
+
+
+def start_observe_tweets(users=None, usernames=None, uids=None, callback=None, interval=10, max_results=10, end_time=None):
     stop_observe_tweets()
 
     global timer
-    timer = Timer(interval=interval, function=_do_observe_tweets, args=(usernames, function, interval, max_results, end_time))
+    timer = Timer(interval=interval, function=_do_observe_tweets, args=(users, usernames, uids, callback, interval, max_results, end_time))
     timer.start()
 
 
@@ -102,20 +113,23 @@ def stop_observe_tweets():
         timer = None
 
 
-def _do_observe_tweets(usernames, function, interval=10, max_results=10, end_time=None):
-    function(users_tweets(usernames=usernames, max_results=max_results, end_time=end_time))
+def _do_observe_tweets(users=None, usernames=None, uids=None, callback=None, interval=10, max_results=10, end_time=None):
+    if callback is not None:
+        callback(get_users_tweets(users=users, usernames=usernames, uids=uids, max_results=max_results, end_time=end_time))
     
     global timer
     if timer is None:
         return
-    start_observe_tweets(usernames=usernames, function=function, interval=interval, max_results=max_results, end_time=end_time)
+    start_observe_tweets(users=users, usernames=usernames, uids=uids, callback=callback, interval=interval, max_results=max_results, end_time=end_time)
 
 
 def test():
     usernames = ['Genshin_7', 'moke14']
+    users = get_users(usernames)
+    print('uids', get_user_ids(users=users))
 
     print('test')
-    start_observe_tweets(usernames, lambda tweets: print(tweets))
+    start_observe_tweets(users=users, callback=lambda tweets: print(tweets))
     print('pop stack: test')
 
 
