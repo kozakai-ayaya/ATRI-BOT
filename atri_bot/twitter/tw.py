@@ -3,9 +3,9 @@ from threading import Timer
 import tweepy
 
 try:
-    import config
+    from atri_bot.twitter import config
     client = tweepy.Client(bearer_token=config.bearer_token)
-    client.session.proxies={"https": config.proxy}
+    client.session.proxies = {"https": config.proxy}
 except:
     print('please create config.py in twitter folder whitch contains bearer_token and proxy')
     pass
