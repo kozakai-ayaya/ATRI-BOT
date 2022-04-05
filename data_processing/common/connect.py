@@ -90,6 +90,8 @@ class Connect(object):
         return get_info
 
     @staticmethod
-    def update_user_info():
-        pass
-
+    def update_user_info(uid: int, info_dict: dict):
+        new_info = user.get_one(uid=uid)
+        for k, v in info_dict.items():
+            new_info[k] = v
+        new_info.update()

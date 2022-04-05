@@ -8,6 +8,7 @@
 @time    : 2022/3/25 9:11 下午
 """
 import json
+import os
 import time
 
 import pymysql
@@ -18,7 +19,7 @@ import requests
 from atri_bot.twitter.tw import start_observe_tweets, get_users
 from data_processing.common.Riko import Riko
 from data_processing.common.connect import Connect
-from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH
+from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH
 
 
 class ProcessingCore(object):
@@ -29,17 +30,47 @@ class ProcessingCore(object):
         Riko.db_config = config
 
         self.connect = Connect()
+        self._create_folder()
         self.spider_user_list = list()
+
+    def _create_folder(self) -> None:
+        path_list = [PROFILE_IMAGE_PATH, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH]
+        for path in path_list:
+            if not os.path.exists(path):
+                os.mkdir(path)
 
     def _read_user_list_in_txt(self) -> list:
         new_spider_user_list = []
-        with open("spider_user_list.txt") as file:
+        with open("spider_user.txt") as file:
             for text in file.readlines():
                 user_name = text.replace("@", "").replace("\n", "")
                 if user_name not in self.spider_user_list:
                     new_spider_user_list.append(user_name)
 
         return new_spider_user_list
+
+    def _check_user_info_change(self, user_info_list: List[dict]):
+        change_dict = dict()
+
+        for user_info in user_info_list:
+            check_user_info_list = get_users(user_info["uid"])[0]
+            for key, value in check_user_info_list.iterm():
+                if user_info[key] == value:
+                    continue
+
+                if key == "username":
+                    self.connect.update_spider_user_info(username=user_info[key], info_dict={"username": check_user_info_list.get(key)})
+
+                if key == "profile_image_url":
+                    change_dict[key] = self._save_profile_image(check_user_info_list[key])
+
+                change_dict[key] = check_user_info_list.get(key)
+
+            if len(change_dict) == 0:
+                continue
+
+            self.connect.update_user_info(uid=user_info["uid"], info_dict=change_dict)
+            change_dict = dict()
 
     def _check_spider_update_status(self) -> list:
         need_update_spider_user_list = []
@@ -59,7 +90,7 @@ class ProcessingCore(object):
         request = requests.get(url=image_url, headers=HEADERS)
         image_path = f"{PROFILE_IMAGE_PATH}/{image_url.split('/')[-1]}"
 
-        if request.status_code == "200":
+        if request.status_code == 200:
             with open(image_path, "wb") as file:
                 file.write(request.content)
         else:

@@ -152,3 +152,5 @@ cython_debug/
 #.idea/
 .vscode
 */twitter/config.py
+/data_processing/atri_bot_db.json
+/data_processing/spider_user.txt
