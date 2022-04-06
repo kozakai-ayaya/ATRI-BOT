@@ -16,7 +16,7 @@ from typing import List
 
 import requests
 
-from atri_bot.twitter.tw import start_observe_tweets, get_users
+from atri_bot.twitter.tw import start_observe_tweets, get_users, get_user_ids
 from data_processing.common.Riko import Riko
 from data_processing.common.connect import Connect
 from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH
@@ -98,24 +98,43 @@ class ProcessingCore(object):
 
         return image_path
 
-    def _save_media_file(self, media_url: str, media_type: str) -> str:
-        request = requests.get(url=media_url, headers=HEADERS)
-        image_path = None
+    def _save_media_file(self, media_url_list: list, media_type_list: list) -> list:
+        image_path_list = list()
 
-        if media_type == "photo":
-            image_path = f"{MEDIA_IMAGE_PATH}/{media_url.split('/')[-1]}"
-            if request.status_code == "200":
-                with open(image_path, "wb") as file:
-                    file.write(request.content)
-            else:
-                image_path = None
-        elif media_type == "video":
-            pass
+        for flag in range(len(media_url_list)):
+            request = requests.get(url=media_url_list[flag], headers=HEADERS)
+            image_path = None
 
-        return image_path
+            if len(media_url_list[flag]) == 0:
+                continue
+
+            if media_type_list[flag] == "photo":
+                image_path = f"{MEDIA_IMAGE_PATH}/{media_url_list[flag].split('/')[-1]}"
+                if request.status_code == "200":
+                    with open(image_path, "wb") as file:
+                        file.write(request.content)
+                else:
+                    image_path_list.append("")
+            elif media_type_list[flag] == "video":
+                pass
+
+            image_path_list.append(image_path)
+
+        return image_path_list
 
     def _download_video(self):
         pass
+
+    def _get_media_url_info(self, media_data: List[dict], get_key: str) -> list:
+        media_data_list = list()
+
+        if len(media_data) == 0:
+            return []
+
+        for data in media_data_list:
+            media_data_list.append(data.get(get_key))
+
+        return media_data_list
 
     def update_new_spider_user_info(self, users_list: List[dict]) -> None:
         for user in users_list:
@@ -148,9 +167,10 @@ class ProcessingCore(object):
                 time=text_info.get("created_at"),
                 tiw_url=twitter_url,
                 tag=str(text_info.get("hashtags")),
-                media_url=text_info.get("media").get("url"),
-                media_key=text_info.get("media").get("type"),
-                media_path=self._save_media_file(text_info.get("media").get("url"), text_info.get("media").get("type")),
+                media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
+                media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
+                media_path=str(self._save_media_file(self._get_media_url_info(text_info.get("media"), "url"),
+                                                     self._get_media_url_info(text_info.get("media"), "type")))[1: -1],
                 status=0,
                 enter_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
             )
@@ -161,10 +181,13 @@ class ProcessingCore(object):
 
         if len(need_update_spider_user_list) != 0:
             users_list = get_users(need_update_spider_user_list)
+            user_id_list = get_user_ids(users_list)
+            for flag in range(len(users_list)):
+                users_list[flag]["uid"] = user_id_list[flag]
             self.update_new_spider_user_info(users_list)
             self.spider_user_list = self.spider_user_list + need_update_spider_user_list
 
-        start_observe_tweets(self.spider_user_list, lambda twitters: self.update_new_text_info(twitters))
+        start_observe_tweets(usernames=self.spider_user_list, callback=lambda twitters: self.update_new_text_info(twitters))
 
     def send_message(self) -> list:
         need_send_message_list = self.connect.get_message_info_by_status(status=0)
