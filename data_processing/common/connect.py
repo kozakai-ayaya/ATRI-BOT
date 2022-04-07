@@ -41,6 +41,11 @@ class Connect(object):
         return get_info
 
     @staticmethod
+    def get_message_info_by_tid(tid: int):
+        get_info = message.get_one(tid=tid)
+        return get_info
+
+    @staticmethod
     def get_message_info_by_username_and_status(username: str, status: int):
         get_info = message.select() \
             .where_raw("username = %(input_username)s AND status = %(input_status)s") \

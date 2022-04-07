@@ -39,6 +39,15 @@ class ProcessingCore(object):
             if not os.path.exists(path):
                 os.mkdir(path)
 
+    def _check_user_info(self) -> None:
+        self.spider_user_list = self._read_user_list_in_txt()
+        need_update_spider_user_list = self._check_spider_update_status()
+
+        if len(need_update_spider_user_list) != 0:
+            users_list = get_users(need_update_spider_user_list)
+            self.update_new_spider_user_info(users_list)
+            self.spider_user_list = self.spider_user_list + need_update_spider_user_list
+
     def _read_user_list_in_txt(self) -> list:
         new_spider_user_list = []
         with open("spider_user.txt") as file:
@@ -109,8 +118,8 @@ class ProcessingCore(object):
                 continue
 
             if media_type_list[flag] == "photo":
-                image_path = f"{MEDIA_IMAGE_PATH}/{media_url_list[flag].split('/')[-1]}"
-                if request.status_code == "200":
+                image_path = os.path.join(MEDIA_IMAGE_PATH, media_url_list[flag].split('/')[-1])
+                if request.status_code == 200:
                     with open(image_path, "wb") as file:
                         file.write(request.content)
                 else:
@@ -131,21 +140,36 @@ class ProcessingCore(object):
         if len(media_data) == 0:
             return []
 
-        for data in media_data_list:
-            media_data_list.append(data.get(get_key))
+        for data in media_data:
+            media_value = data.get(get_key)
+            if media_value is None or media_value == "":
+                continue
+            media_data_list.append(media_value)
 
         return media_data_list
+
+    def _check_tw_message_in_database_exists(self, tid) -> bool:
+        message = self.connect.get_message_info_by_tid(tid=tid)
+        if message is None:
+            return False
+        return
+
+    def _check_hashtag(self, hash_tag: List[dict]) -> object:
+        if hash_tag is None:
+            return None
+
+        return str(hash_tag)[1: -1]
 
     def update_new_spider_user_info(self, users_list: List[dict]) -> None:
         for user in users_list:
             self.connect.insert_spider_user_info(
-                uid=user.get("uid"),
+                uid=user.get("id"),
                 username=user.get("username"),
                 add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
             )
 
             self.connect.insert_user_info(
-                uid=user.get("uid"),
+                uid=user.get("id"),
                 name=user.get("name"),
                 username=user.get("username"),
                 description=user.get("description"),
@@ -155,7 +179,12 @@ class ProcessingCore(object):
             )
 
     def update_new_text_info(self, need_update_info: List[dict]) -> None:
+        self._check_user_info()
+
         for text_info in need_update_info:
+            if self._check_tw_message_in_database_exists(tid=text_info.get("tid")) is True:
+                continue
+
             twitter_url = f"{TWITTER_URL}/{text_info.get('user').get('username')}/status/{text_info.get('tid')}"
 
             self.connect.insert_message_info(
@@ -166,7 +195,7 @@ class ProcessingCore(object):
                 text=text_info.get("text"),
                 time=text_info.get("created_at"),
                 tiw_url=twitter_url,
-                tag=str(text_info.get("hashtags")),
+                tag=self._check_hashtag(text_info.get("hashtags")),
                 media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
                 media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
                 media_path=str(self._save_media_file(self._get_media_url_info(text_info.get("media"), "url"),
@@ -176,18 +205,9 @@ class ProcessingCore(object):
             )
 
     def get_message(self):
-        self.spider_user_list = self._read_user_list_in_txt()
-        need_update_spider_user_list = self._check_spider_update_status()
-
-        if len(need_update_spider_user_list) != 0:
-            users_list = get_users(need_update_spider_user_list)
-            user_id_list = get_user_ids(users_list)
-            for flag in range(len(users_list)):
-                users_list[flag]["uid"] = user_id_list[flag]
-            self.update_new_spider_user_info(users_list)
-            self.spider_user_list = self.spider_user_list + need_update_spider_user_list
-
-        start_observe_tweets(usernames=self.spider_user_list, callback=lambda twitters: self.update_new_text_info(twitters))
+        self._check_user_info()
+        start_observe_tweets(usernames=self.spider_user_list,
+                             callback=lambda twitters: self.update_new_text_info(twitters))
 
     def send_message(self) -> list:
         need_send_message_list = self.connect.get_message_info_by_status(status=0)
