@@ -11,9 +11,9 @@ import json
 import os
 import time
 
-import pymysql
 from typing import List
 
+import pymysql
 import requests
 
 from atri_bot.twitter.tw import start_observe_tweets, get_users, get_user_ids
@@ -148,12 +148,6 @@ class ProcessingCore(object):
 
         return media_data_list
 
-    def _check_tw_message_in_database_exists(self, tid) -> bool:
-        message = self.connect.get_message_info_by_tid(tid=tid)
-        if message is None:
-            return False
-        return
-
     def _check_hashtag(self, hash_tag: List[dict]) -> object:
         if hash_tag is None:
             return None
@@ -182,27 +176,28 @@ class ProcessingCore(object):
         self._check_user_info()
 
         for text_info in need_update_info:
-            if self._check_tw_message_in_database_exists(tid=text_info.get("tid")) is True:
-                continue
-
             twitter_url = f"{TWITTER_URL}/{text_info.get('user').get('username')}/status/{text_info.get('tid')}"
 
-            self.connect.insert_message_info(
-                tid=text_info.get("tid"),
-                uid=text_info.get("uid"),
-                name=text_info.get("user").get("name"),
-                username=text_info.get("user").get("username"),
-                text=text_info.get("text"),
-                time=text_info.get("created_at"),
-                tiw_url=twitter_url,
-                tag=self._check_hashtag(text_info.get("hashtags")),
-                media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
-                media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
-                media_path=str(self._save_media_file(self._get_media_url_info(text_info.get("media"), "url"),
-                                                     self._get_media_url_info(text_info.get("media"), "type")))[1: -1],
-                status=0,
-                enter_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-            )
+            try:
+                self.connect.insert_message_info(
+                    tid=text_info.get("tid"),
+                    uid=text_info.get("uid"),
+                    name=text_info.get("user").get("name"),
+                    username=text_info.get("user").get("username"),
+                    text=text_info.get("text"),
+                    time=text_info.get("created_at"),
+                    tiw_url=twitter_url,
+                    tag=self._check_hashtag(text_info.get("hashtags")),
+                    media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
+                    media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
+                    media_path=str(self._save_media_file(self._get_media_url_info(text_info.get("media"), "url"),
+                                                         self._get_media_url_info(text_info.get("media"), "type")))[
+                               1: -1],
+                    status=0,
+                    enter_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                )
+            except pymysql.err.IntegrityError:
+                continue
 
     def get_message(self):
         self._check_user_info()
