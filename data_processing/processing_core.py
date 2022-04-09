@@ -7,6 +7,7 @@
 @contact : minami.rinne.me@gmail.com
 @time    : 2022/3/25 9:11 下午
 """
+import copy
 import json
 import os
 import time
@@ -16,7 +17,7 @@ from typing import List
 import pymysql
 import requests
 
-from atri_bot.twitter.tw import start_observe_tweets, get_users, get_user_ids
+from atri_bot.twitter.tw import start_observe_tweets, get_users
 from data_processing.common.Riko import Riko
 from data_processing.common.connect import Connect
 from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH
@@ -32,6 +33,21 @@ class ProcessingCore(object):
         self.connect = Connect()
         self._create_folder()
         self.spider_user_list = list()
+        self.need_update_spider_user_list = list()
+        self._init_start_user_list()
+
+    def bot_star(self):
+        start_observe_tweets(usernames=self.spider_user_list,
+                             callback=lambda twitters: self._bot_controller(twitters))
+
+    def _init_start_user_list(self) -> None:
+        need_update_list = self._get_need_update_spider()
+        text_list = self._read_user_list_in_txt()
+        if len(need_update_list) == 0:
+            self.spider_user_list = text_list
+        else:
+            self.need_update_spider_user_list = need_update_list
+            self.spider_user_list = copy.deepcopy(need_update_list)
 
     def _create_folder(self) -> None:
         path_list = [PROFILE_IMAGE_PATH, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH]
@@ -39,24 +55,14 @@ class ProcessingCore(object):
             if not os.path.exists(path):
                 os.mkdir(path)
 
-    def _check_user_info(self) -> None:
-        self.spider_user_list = self._read_user_list_in_txt()
-        need_update_spider_user_list = self._check_spider_update_status()
-
-        if len(need_update_spider_user_list) != 0:
-            users_list = get_users(need_update_spider_user_list)
-            self.update_new_spider_user_info(users_list)
-            self.spider_user_list = self.spider_user_list + need_update_spider_user_list
-
     def _read_user_list_in_txt(self) -> list:
-        new_spider_user_list = []
+        text_spider_user_list = []
         with open("spider_user.txt") as file:
             for text in file.readlines():
                 user_name = text.replace("@", "").replace("\n", "")
-                if user_name not in self.spider_user_list:
-                    new_spider_user_list.append(user_name)
+                text_spider_user_list.append(user_name)
 
-        return new_spider_user_list
+        return text_spider_user_list
 
     def _check_user_info_change(self, user_info_list: List[dict]):
         change_dict = dict()
@@ -81,15 +87,22 @@ class ProcessingCore(object):
             self.connect.update_user_info(uid=user_info["uid"], info_dict=change_dict)
             change_dict = dict()
 
-    def _check_spider_update_status(self) -> list:
+    def _get_need_update_spider(self) -> list:
         need_update_spider_user_list = []
         spider_user_info_in_db = [db_info["username"] for db_info in self.connect.get_spider_user_info()]
+        user_info_in_db = [db_info["uid"] for db_info in self.connect.get_user_info()]
 
-        for username in spider_user_info_in_db:
-            update_dict = {"last_check_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}
-            self.connect.update_spider_user_info(username=username, info_dict=update_dict)
+        if len(spider_user_info_in_db) != 0:
+            for username in spider_user_info_in_db:
+                update_dict = {"last_check_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}
+                self.connect.update_spider_user_info(username=username, info_dict=update_dict)
 
-        for spider_user_info in self.spider_user_list:
+        if len(user_info_in_db) != 0:
+            for uid in user_info_in_db:
+                update_dict = {"last_check_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}
+                self.connect.update_user_info(uid=uid, info_dict=update_dict)
+
+        for spider_user_info in self._read_user_list_in_txt():
             if spider_user_info not in spider_user_info_in_db:
                 need_update_spider_user_list.append(spider_user_info)
 
@@ -154,27 +167,33 @@ class ProcessingCore(object):
 
         return str(hash_tag)[1: -1]
 
-    def update_new_spider_user_info(self, users_list: List[dict]) -> None:
-        for user in users_list:
-            self.connect.insert_spider_user_info(
-                uid=user.get("id"),
-                username=user.get("username"),
-                add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-            )
+    def update_new_spider_user_info(self, users_list: list) -> None:
+        users_info_list = get_users(users_list)
+        for user in users_info_list:
+            try:
+                self.connect.insert_spider_user_info(
+                    uid=user.get("id"),
+                    username=user.get("username"),
+                    add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                )
+            except pymysql.err.IntegrityError:
+                pass
 
-            self.connect.insert_user_info(
-                uid=user.get("id"),
-                name=user.get("name"),
-                username=user.get("username"),
-                description=user.get("description"),
-                profile_image_url=user.get("profile_image_url"),
-                profile_image_path=self._save_profile_image(user.get("profile_image_url")),
-                add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-            )
+            try:
+                self.connect.insert_user_info(
+                    uid=user.get("id"),
+                    name=user.get("name"),
+                    username=user.get("username"),
+                    description=user.get("description"),
+                    profile_image_url=user.get("profile_image_url"),
+                    profile_image_path=self._save_profile_image(user.get("profile_image_url")),
+                    add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                )
+
+            except pymysql.err.IntegrityError:
+                pass
 
     def update_new_text_info(self, need_update_info: List[dict]) -> None:
-        self._check_user_info()
-
         for text_info in need_update_info:
             twitter_url = f"{TWITTER_URL}/{text_info.get('user').get('username')}/status/{text_info.get('tid')}"
 
@@ -190,32 +209,48 @@ class ProcessingCore(object):
                     tag=self._check_hashtag(text_info.get("hashtags")),
                     media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
                     media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
-                    media_path=str(self._save_media_file(self._get_media_url_info(text_info.get("media"), "url"),
-                                                         self._get_media_url_info(text_info.get("media"), "type")))[
-                               1: -1],
+                    media_path=str(self._save_media_file(
+                        self._get_media_url_info(text_info.get("media"), "url"),
+                        self._get_media_url_info(text_info.get("media"), "type"))
+                    )[1: -1],
                     status=0,
                     enter_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
                 )
             except pymysql.err.IntegrityError:
                 continue
 
-    def get_message(self):
-        self._check_user_info()
-        start_observe_tweets(usernames=self.spider_user_list,
-                             callback=lambda twitters: self.update_new_text_info(twitters))
-
-    def send_message(self) -> list:
-        need_send_message_list = self.connect.get_message_info_by_status(status=0)
-        return need_send_message_list
-
-    def send_message_status(self, message_status: List[dict]) -> None:
+    def update_send_message_status(self, message_status: List[dict]) -> None:
         for status_dict in message_status:
-            self.connect.update_message_info_by_tid_and_update(tid=status_dict.get("tid"),
-                                                               status=0,
-                                                               info_dict={"status": status_dict.get("status_dict"),
-                                                                          "send_time": time.strftime('%Y-%m-%d %H:%M:%S',
-                                                                                                     time.localtime(time.time()))})
+            self.connect.update_message_info_by_tid_and_update(
+                tid=status_dict.get("tid"),
+                status=0,
+                info_dict={
+                    "status": status_dict.get("status_dict"),
+                    "send_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                }
+            )
+
+    def _bot_controller(self, twitters: List[dict]):
+
+        update_spider_user_list = self._get_need_update_spider()
+
+        if len(update_spider_user_list) != 0:
+            self.update_new_spider_user_info(self.spider_user_list)
+            self.need_update_spider_user_list = copy.deepcopy(update_spider_user_list)
+            start_observe_tweets(usernames=update_spider_user_list,
+                                 callback=lambda twitter: self._bot_controller(twitter))
+
+        if len(self.need_update_spider_user_list) != 0:
+            self.spider_user_list.extend(self.need_update_spider_user_list)
+            self.need_update_spider_user_list.clear()
+
+        self.update_new_text_info(twitters)
+
+        start_observe_tweets(usernames=self.spider_user_list,
+                             interval=30,
+                             max_results=1,
+                             callback=lambda twitter: self._bot_controller(twitter))
 
 
 if __name__ == "__main__":
-    ProcessingCore().get_message()
+    ProcessingCore().bot_star()

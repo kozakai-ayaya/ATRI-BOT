@@ -11,20 +11,20 @@ from data_processing.common.Riko import DictModel
 
 
 class message(DictModel):
-    pk = ["id"]
-    fields = ["tid", "uid", "name", "username", "text", "time", "tiw_url", "tag", "media_url", "media_key",
-              "media_type", "media_path", "status", "send_time", "enter_time"]
+    pk = ["tid"]
+    fields = ["uid", "name", "username", "text", "time", "tiw_url", "tag", "media_url", "media_key", "media_type",
+              "media_path", "status", "send_time", "enter_time"]
 
 
 class spider_user(DictModel):
-    pk = ["id"]
-    fields = ["uid", "username", "add_time", "add_time", "last_check_time"]
+    pk = ["uid"]
+    fields = ["username", "add_time", "add_time", "last_check_time"]
 
 
 class user(DictModel):
-    pk = ["id"]
-    fields = ["uid", "name", "username", "description", "profile_image_url", "profile_image_path", "add_time",
-              "update_time", "last_check_time"]
+    pk = ["uid"]
+    fields = ["name", "username", "description", "profile_image_url", "profile_image_path", "add_time", "update_time",
+              "last_check_time"]
 
 
 class Connect(object):
