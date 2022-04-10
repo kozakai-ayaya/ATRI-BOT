@@ -13,7 +13,7 @@ from data_processing.common.Riko import DictModel
 class message(DictModel):
     pk = ["tid"]
     fields = ["uid", "name", "username", "text", "time", "tiw_url", "tag", "media_url", "media_key", "media_type",
-              "media_path", "status", "send_time", "enter_time"]
+              "media_path", "status", "send_time", "enter_time", "error_message"]
 
 
 class spider_user(DictModel):

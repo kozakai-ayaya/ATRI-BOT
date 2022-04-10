@@ -8,9 +8,9 @@
 @time    : 2022/3/28 4:35 上午
 """
 
-PROFILE_IMAGE_PATH = ""
-MEDIA_IMAGE_PATH = ""
-MEDIA_VIDEO_PATH = ""
+PROFILE_IMAGE_PATH = "/Users/ayaya/Desktop/test/a"
+MEDIA_IMAGE_PATH = "/Users/ayaya/Desktop/test/b"
+MEDIA_VIDEO_PATH = "/Users/ayaya/Desktop/test/c"
 TWITTER_URL = "https://twitter.com"
 HEADERS = {
             "User-Agent":

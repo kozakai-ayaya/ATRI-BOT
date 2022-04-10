@@ -34,6 +34,7 @@ class ProcessingCore(object):
         self._create_folder()
         self.spider_user_list = list()
         self.need_update_spider_user_list = list()
+        self.error_user_list = list()
         self._init_start_user_list()
 
     def bot_star(self):
@@ -225,10 +226,13 @@ class ProcessingCore(object):
                 tid=status_dict.get("tid"),
                 status=0,
                 info_dict={
-                    "status": status_dict.get("status_dict"),
+                    "status": status_dict.get("status"),
                     "send_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
                 }
             )
+
+    def send_message(self):
+        message_list = self.connect.get_message_info_by_status(status=0)
 
     def _bot_controller(self, twitters: List[dict]):
 
@@ -238,6 +242,7 @@ class ProcessingCore(object):
             self.update_new_spider_user_info(self.spider_user_list)
             self.need_update_spider_user_list = copy.deepcopy(update_spider_user_list)
             start_observe_tweets(usernames=update_spider_user_list,
+                                 max_results=20,
                                  callback=lambda twitter: self._bot_controller(twitter))
 
         if len(self.need_update_spider_user_list) != 0:
@@ -245,11 +250,15 @@ class ProcessingCore(object):
             self.need_update_spider_user_list.clear()
 
         self.update_new_text_info(twitters)
+        self.send_message()
 
         start_observe_tweets(usernames=self.spider_user_list,
-                             interval=30,
-                             max_results=1,
+                             interval=60,
+                             max_results=10,
                              callback=lambda twitter: self._bot_controller(twitter))
+
+    def error_user(self, error_user_list: list):
+        pass
 
 
 if __name__ == "__main__":
