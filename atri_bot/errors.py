@@ -2,6 +2,14 @@ class BaseError(Exception):
     pass
 
 
+class AuthException(BaseError):
+    def __repr__(self):
+        return '''Authentication failed!
+        This exception may be caused by expired cookies. Please refresh the cookies and try again.'''
+
+    __str__ = __repr__
+
+
 class UnexpectedResponseException(BaseError):
     def __init__(self, res):
         """

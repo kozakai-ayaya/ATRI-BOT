@@ -1,5 +1,10 @@
-import requests
+import functools
 import logging
+
+import requests
+
+from .errors import UnexpectedResponseException
+
 
 class HTTPAdapter(requests.adapters.HTTPAdapter):
     def __init__(self, timeout=None, *args, **kwargs):
@@ -9,20 +14,22 @@ class HTTPAdapter(requests.adapters.HTTPAdapter):
     def send(self, *args, **kwargs):
         # set timeout default value
         if kwargs['timeout'] is None:
-           kwargs['timeout'] = self.timeout
+            kwargs['timeout'] = self.timeout
         return super().send(*args, **kwargs)
 
+
 def prepare_session(session, timeout=None, proxies=None):
-    session.mount("http://", HTTPAdapter(timeout=10))
+    session.mount("http://", HTTPAdapter(timeout=timeout))
     if proxies:
         session.proxies.update(proxies)
         session.trust_env = False
 
+
 def setup_logger(
     name=None,
-    level = logging.INFO,
-    format = "%(asctime)s %(name)s %(levelname)s: %(message)s",
-    filepath = None,
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+    filepath=None,
 ) -> logging.Logger:
     """Setups logger: name, level, format etc.
     (From ignite utils)
@@ -87,3 +94,41 @@ def setup_logger(
         logger.addHandler(fh)
 
     return logger
+
+
+def set_referer(url, override=True):
+    def wrapper_maker(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]
+            origin_referer = self.session.headers.get('referer')
+            if not override and origin_referer:
+                return func(*args, **kwargs)
+            self.session.headers['referer'] = url
+            try:
+                return func(*args, **kwargs)
+            finally:
+                if origin_referer:
+                    self.session.headers['referer'] = origin_referer
+                else:
+                    self.session.headers.pop('referer')
+        return wrapper
+    return wrapper_maker
+
+
+def json_response(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        self = args[0]
+        response = func(*args, **kwargs)
+        e = UnexpectedResponseException(response)
+        try:
+            response_json = response.json()
+        except Exception as inner_e:
+            raise e from inner_e
+        if response_json.get('ok') is not None and response_json['ok'] != 1:
+            raise e
+        response_json = response_json.get(
+            'data') or response_json.get('msg') or response_json
+        return response_json
+    return wrapper
