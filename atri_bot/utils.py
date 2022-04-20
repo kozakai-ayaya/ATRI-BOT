@@ -120,14 +120,21 @@ def json_response(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         self = args[0]
-        response = func(*args, **kwargs)
-        e = UnexpectedResponseException(response)
+
+        # replace header value of Accept for higher priority of json reponse
+        origin_accept = self.session.headers.get('Accept')
+        self.session.headers['Accept'] = 'application/json, text/plain, */*'
+        
         try:
+            response = func(*args, **kwargs)
             response_json = response.json()
-        except Exception as inner_e:
-            raise e from inner_e
+        except requests.JSONDecodeError as inner_e:
+            raise UnexpectedResponseException(response) from inner_e
+        finally:
+            self.session.headers['Accept'] = origin_accept or '*/*'
+
         if response_json.get('ok') is not None and response_json['ok'] != 1:
-            raise e
+            raise UnexpectedResponseException(response)
         response_json = response_json.get(
             'data') or response_json.get('msg') or response_json
         return response_json
