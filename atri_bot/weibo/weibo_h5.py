@@ -1,7 +1,6 @@
 import contextlib
 import datetime
-from email import contentmanager
-
+import functools
 from io import IOBase
 from os import PathLike
 from pathlib import Path
@@ -9,11 +8,10 @@ from typing import Iterable, List, Optional, Union
 
 import requests
 
-from ..utils import json_response, set_referer
-
 from ..errors import AuthException, UnexpectedResponseException
+from ..utils import get_stream_from_path_or_stream, json_response, set_referer
 from . import urls
-from .base import WeiboAPIBase, WeiboAuth, WeiboVisible
+from .base import PathOrStream, WeiboAPIBase, WeiboAuth, WeiboVisible
 
 DEAFULT_HEADER = {
     'mweibo-pwa': '1',
@@ -28,6 +26,7 @@ def encode_compose_refer(image_ids: List[str]):
         referer += f'/?pids={",".join(image_ids)}'
     return referer
 
+
 SPR = 'screen:400x629'
 
 
@@ -38,6 +37,15 @@ class WeiboH5API(WeiboAPIBase):
         self._config = None
         self._config_update_time = None
 
+    def need_login(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                self.config
+            except UnexpectedResponseException as e:
+                raise AuthException() from e
+            return func(*args, **kwargs)
+
     @staticmethod
     def cookies_key_to_domain(key):
         return '.m.weibo.cn' if key == 'XSRF-TOKEN' else '.weibo.cn'
@@ -46,14 +54,10 @@ class WeiboH5API(WeiboAPIBase):
         self.session.headers.update(DEAFULT_HEADER)
         self.session.auth = WeiboAuth(self)
         super().init_session(timeout, proxies)
-        try:
-            self.config
-        except UnexpectedResponseException as e:
-            raise AuthException() from e
 
     @property
     def config(self):
-        """获取登录信息，更新xsrf token，通常没有必要读取这个字段，可以直接使用is_login，st，uid字段。
+        """获取登录信息，更新xsrf token。正常情况下没有必要读取这个字段。
         """
         if self._config and self._config_update_time - datetime.datetime.now() < datetime.timedelta(minutes=5):
             return self._config
@@ -66,18 +70,20 @@ class WeiboH5API(WeiboAPIBase):
     def _get_config(self):
         return self.session.get(urls.CONFIG)
 
+    @need_login
     @set_referer(urls.COMPOSE_REFERER_BASE)
     @json_response
     def send_weibo(self,
                    text: str,
-                   image_paths: Optional[Union[str, PathLike, IOBase]] = None,
-                   visible: WeiboVisible = WeiboVisible.EVERYONE
-                   ):
+                   image_paths: Optional[Iterable[PathOrStream]] = None,
+                   visible: Optional[WeiboVisible] = WeiboVisible.EVERYONE
+                   ) -> requests.Response:
         """发送微博
 
         Args:
-            text (str): 正文内容
-            image_paths (Optional[Union[str, PathLike, IOBase]], optional): 图片的路径. Defaults to None.
+            text (str): 正文内容。
+            image_paths (Optional[Iterable[PathOrStream]]): 图片的路径或者是二进制流。
+            visible (Optional[WeiboVisible]): 微博可见性。
 
         Returns:
             返回的json文件。
@@ -102,6 +108,7 @@ class WeiboH5API(WeiboAPIBase):
         return self.session.post(urls.SEND_WEIBO, data=data)
 
     # handle referer in post method
+    @need_login
     @json_response
     def delete_weibo(self, weibo_id: Union[str, int]):
         if isinstance(weibo_id, int):
@@ -113,13 +120,14 @@ class WeiboH5API(WeiboAPIBase):
         }
         return self.session.post(urls.DELETE_WEIBO, data=data, headers={'referer': f'{urls.BASE_URL}detail/{weibo_id}'})
 
+    @need_login
     @set_referer(urls.COMPOSE_REFERER_BASE, override=False)
     @json_response
-    def upload_image(self, image_path_or_stream: Union[str, PathLike, IOBase]):
+    def upload_image(self, image_path_or_stream: PathOrStream):
         """上传图片到微博图床。通常不用手动调用此方法。
 
         Args:
-            image_path (str): 图片路径
+            image_path (PathOrStream): 图片路径或者二进制流
 
         Returns:
             带有以下字段的json返回值
@@ -128,15 +136,10 @@ class WeiboH5API(WeiboAPIBase):
             pic_id: "{pic_id}"
             thumbnail_pic: "http://wx3.sinaimg.cn/thumbnail/{pic_id}.jpg"
         """
-        if isinstance(image_path_or_stream, (str, PathLike)):
-            image_path = Path(image_path_or_stream)
-            image_name = image_path.name
-            image_stream = image_path.open('rb')
-        elif isinstance(image_path_or_stream, IOBase):
-            image_name = 'image_stream'
-            image_stream = image_path_or_stream
-        else:
-            raise TypeError(f'unknown input type {type(image_stream)}')
+        image_stream = get_stream_from_path_or_stream(image_path_or_stream)
+        image_name = 'image.jpg' if isinstance(
+            image_path_or_stream, IOBase) else Path(image_path_or_stream).name
+
         with contextlib.closing(image_stream) as fp:
             response = self.session.post(
                 urls.UPLOAD_IMAGE,

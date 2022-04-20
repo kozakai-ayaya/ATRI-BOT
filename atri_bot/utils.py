@@ -1,7 +1,12 @@
 import functools
+from io import IOBase
 import logging
+from os import PathLike
+from pathlib import Path
 
 import requests
+
+from atri_bot.weibo.base import PathOrStream
 
 from .errors import UnexpectedResponseException
 
@@ -118,7 +123,7 @@ def set_referer(url, override=True):
 
 def json_response(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs) -> dict:
         self = args[0]
 
         # replace header value of Accept for higher priority of json reponse
@@ -139,3 +144,13 @@ def json_response(func):
             'data') or response_json.get('msg') or response_json
         return response_json
     return wrapper
+
+def get_stream_from_path_or_stream(path_or_stream: PathOrStream) -> IOBase:
+    if isinstance(path_or_stream, (str, PathLike)):
+            path = Path(path_or_stream)
+            stream = path.open('rb')
+    elif isinstance(path_or_stream, IOBase):
+        stream = path_or_stream
+    else:
+        raise TypeError(f'unknown input type {type(path_or_stream)}')
+    return stream

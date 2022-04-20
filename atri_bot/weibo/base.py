@@ -1,15 +1,16 @@
-
 import json
 import pickle
 from enum import Enum
 from http.cookiejar import MozillaCookieJar
 from io import IOBase
 from os import PathLike
-from typing import Optional, Union
+from typing import Iterable, Optional, Union
 
 import requests
 
 from ..utils import prepare_session
+
+PathOrStream = Union[str, PathLike, IOBase]
 
 
 class WeiboVisible(Enum):
@@ -38,12 +39,12 @@ class WeiboAPIBase:
 
     def send_weibo(self,
                    text: str,
-                   image_paths: Optional[Union[str, PathLike, IOBase]] = None,
+                   image_paths: Optional[Iterable[PathOrStream]] = None,
                    visible: WeiboVisible = WeiboVisible.EVERYONE
                    ):
         raise NotImplementedError()
 
-    def upload_image(self, path_or_io: Union[str, PathLike, IOBase]):
+    def upload_image(self, path_or_stream: PathOrStream):
         raise NotImplementedError()
 
     @staticmethod
