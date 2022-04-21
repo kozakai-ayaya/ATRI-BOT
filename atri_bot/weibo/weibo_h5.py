@@ -1,17 +1,14 @@
 import contextlib
-import datetime
-import functools
 from io import IOBase
-from os import PathLike
 from pathlib import Path
-from typing import Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 import requests
 
-from ..errors import AuthException, UnexpectedResponseException
-from ..utils import get_stream_from_path_or_stream, json_response, set_referer
+from ..utils import get_stream_from_path_or_stream
 from . import urls
-from .base import PathOrStream, WeiboAPIBase, WeiboAuth, WeiboVisible
+from .base import (PathOrStream, WeiboAPIBase, WeiboAuth, WeiboVisible,
+                   json_response, need_login, set_referer)
 
 DEAFULT_HEADER = {
     'mweibo-pwa': '1',
@@ -31,52 +28,27 @@ SPR = 'screen:400x629'
 
 
 class WeiboH5API(WeiboAPIBase):
-    def __init__(self):
-        self.session = requests.Session()
-
-        self._config = None
-        self._config_update_time = None
-
-    def need_login(self, func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                self.config
-            except UnexpectedResponseException as e:
-                raise AuthException() from e
-            return func(*args, **kwargs)
-
     @staticmethod
     def cookies_key_to_domain(key):
         return '.m.weibo.cn' if key == 'XSRF-TOKEN' else '.weibo.cn'
 
-    def init_session(self, timeout: int = 10, proxies: dict[str, str] = None):
+    def init_session(self, timeout: int = 10, proxies: Dict[str, str] = None):
         self.session.headers.update(DEAFULT_HEADER)
         self.session.auth = WeiboAuth(self)
         super().init_session(timeout, proxies)
 
-    @property
-    def config(self):
-        """获取登录信息，更新xsrf token。正常情况下没有必要读取这个字段。
-        """
-        if self._config and self._config_update_time - datetime.datetime.now() < datetime.timedelta(minutes=5):
-            return self._config
-        self._config = self._get_config()
-        self._config_update_time = datetime.datetime.now()
-        return self._config
-
     @set_referer(urls.BASE_URL)
-    @json_response
+    @json_response()
     def _get_config(self):
         return self.session.get(urls.CONFIG)
 
     @need_login
     @set_referer(urls.COMPOSE_REFERER_BASE)
-    @json_response
+    @json_response()
     def send_weibo(self,
                    text: str,
                    image_paths: Optional[Iterable[PathOrStream]] = None,
-                   visible: Optional[WeiboVisible] = WeiboVisible.EVERYONE
+                   visible: WeiboVisible = WeiboVisible.EVERYONE
                    ) -> requests.Response:
         """发送微博
 
@@ -109,7 +81,7 @@ class WeiboH5API(WeiboAPIBase):
 
     # handle referer in post method
     @need_login
-    @json_response
+    @json_response()
     def delete_weibo(self, weibo_id: Union[str, int]):
         if isinstance(weibo_id, int):
             weibo_id = str(weibo_id)
@@ -122,7 +94,7 @@ class WeiboH5API(WeiboAPIBase):
 
     @need_login
     @set_referer(urls.COMPOSE_REFERER_BASE, override=False)
-    @json_response
+    @json_response()
     def upload_image(self, image_path_or_stream: PathOrStream):
         """上传图片到微博图床。通常不用手动调用此方法。
 
@@ -137,7 +109,7 @@ class WeiboH5API(WeiboAPIBase):
             thumbnail_pic: "http://wx3.sinaimg.cn/thumbnail/{pic_id}.jpg"
         """
         image_stream = get_stream_from_path_or_stream(image_path_or_stream)
-        image_name = 'image.jpg' if isinstance(
+        image_name = 'image_stream' if isinstance(
             image_path_or_stream, IOBase) else Path(image_path_or_stream).name
 
         with contextlib.closing(image_stream) as fp:

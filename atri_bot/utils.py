@@ -1,14 +1,16 @@
 import functools
-from io import IOBase
 import logging
+from io import IOBase
 from os import PathLike
 from pathlib import Path
+from typing import Union
 
+import json
 import requests
 
-from atri_bot.weibo.base import PathOrStream
-
 from .errors import UnexpectedResponseException
+
+PathOrStream = Union[str, PathLike, IOBase]
 
 
 class HTTPAdapter(requests.adapters.HTTPAdapter):
@@ -101,54 +103,10 @@ def setup_logger(
     return logger
 
 
-def set_referer(url, override=True):
-    def wrapper_maker(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            self = args[0]
-            origin_referer = self.session.headers.get('referer')
-            if not override and origin_referer:
-                return func(*args, **kwargs)
-            self.session.headers['referer'] = url
-            try:
-                return func(*args, **kwargs)
-            finally:
-                if origin_referer:
-                    self.session.headers['referer'] = origin_referer
-                else:
-                    self.session.headers.pop('referer')
-        return wrapper
-    return wrapper_maker
-
-
-def json_response(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs) -> dict:
-        self = args[0]
-
-        # replace header value of Accept for higher priority of json reponse
-        origin_accept = self.session.headers.get('Accept')
-        self.session.headers['Accept'] = 'application/json, text/plain, */*'
-        
-        try:
-            response = func(*args, **kwargs)
-            response_json = response.json()
-        except requests.JSONDecodeError as inner_e:
-            raise UnexpectedResponseException(response) from inner_e
-        finally:
-            self.session.headers['Accept'] = origin_accept or '*/*'
-
-        if response_json.get('ok') is not None and response_json['ok'] != 1:
-            raise UnexpectedResponseException(response)
-        response_json = response_json.get(
-            'data') or response_json.get('msg') or response_json
-        return response_json
-    return wrapper
-
 def get_stream_from_path_or_stream(path_or_stream: PathOrStream) -> IOBase:
     if isinstance(path_or_stream, (str, PathLike)):
-            path = Path(path_or_stream)
-            stream = path.open('rb')
+        path = Path(path_or_stream)
+        stream = path.open('rb')
     elif isinstance(path_or_stream, IOBase):
         stream = path_or_stream
     else:
