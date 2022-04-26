@@ -1,4 +1,5 @@
 
+import re
 from threading import Timer
 import tweepy
 
@@ -6,12 +7,53 @@ try:
     from atri_bot.twitter import config
     client = tweepy.Client(bearer_token=config.bearer_token)
     client.session.proxies = {"https": config.proxy}
+    client.session.trust_env = False
 except:
     print('please create config.py in twitter folder whitch contains bearer_token and proxy')
     pass
 
 
 timer = None
+
+def escape_regular_text(text):
+    text = text.replace('@', '(a)').replace('＠', '(a)')
+    text = text.replace('#', '#️⃣')
+    return text
+
+def escape_text(tweet, author):
+    matcher = []
+    checked_pos = set()
+    if tweet.entities:
+        for url in tweet.entities.get('urls') or tuple():
+            if (url['start'], url['end']) in checked_pos:
+                continue
+            checked_pos.add((url['start'], url['end']))
+            if url['display_url'].count('pic.twitter.com') == 1:
+                matcher.append((url['start'], url['end'], ''))
+            else:
+                matcher.append((url['start'], url['end'], re.sub(
+                    r'.*://', '', url['expanded_url'])))
+        for hashtag in tweet.entities.get('hashtags') or tuple():
+            matcher.append(
+                (hashtag['start'], hashtag['end'], f'#{hashtag["tag"]}#'))
+        for mention in tweet.entities.get('mentions') or tuple():
+            matcher.append(
+                (mention['start'], mention['end'], f'(a){mention["username"]}'))
+
+    matcher.sort()
+    pos = 0
+    res = []
+    raw_text = tweet.text
+    for matcher_st, matcher_ed, text in matcher:
+        if matcher_st > pos:
+            res.append(escape_regular_text(raw_text[pos:matcher_st]))
+        pos = matcher_ed
+        res.append(text)
+    if len(raw_text) > pos:
+        res.append(escape_regular_text(raw_text[pos:]))
+    text = ''.join(res)
+
+    return text
 
 
 def get_users_tweets(users=None, usernames=None, uids=None, max_results=10, end_time=None):
@@ -73,7 +115,7 @@ def get_users_tweets(users=None, usernames=None, uids=None, max_results=10, end_
                                 break
 
                 results.append({
-                    'text': tweet.text,
+                    'text': escape_text(tweet, user),
                     'tid': tweet.id,
                     'uid': uid,
                     'user': user,

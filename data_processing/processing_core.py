@@ -17,10 +17,11 @@ from typing import List
 import pymysql
 import requests
 
-from atri_bot.twitter.tw import start_observe_tweets, get_users
+from atri_bot.twitter.tw import start_observe_tweets, get_users, escape_regular_text
+from atri_bot.weibo import WeiboAPI
 from data_processing.common.Riko import Riko
 from data_processing.common.connect import Connect
-from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH
+from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH, WEIBO_COOKIES_PATH
 
 
 class ProcessingCore(object):
@@ -36,6 +37,8 @@ class ProcessingCore(object):
         self.need_update_spider_user_list = list()
         self.error_user_list = list()
         self._init_start_user_list()
+        
+        self.weibo_api = WeiboAPI.load_from_cookies_object(WEIBO_COOKIES_PATH)
 
     def bot_star(self):
         start_observe_tweets(usernames=self.spider_user_list,
@@ -210,10 +213,10 @@ class ProcessingCore(object):
                     tag=self._check_hashtag(text_info.get("hashtags")),
                     media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
                     media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
-                    media_path=str(self._save_media_file(
+                    media_path=','.join(self._save_media_file(
                         self._get_media_url_info(text_info.get("media"), "url"),
                         self._get_media_url_info(text_info.get("media"), "type"))
-                    )[1: -1],
+                    ),
                     status=0,
                     enter_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
                 )
@@ -233,6 +236,16 @@ class ProcessingCore(object):
 
     def send_message(self):
         message_list = self.connect.get_message_info_by_status(status=0)
+
+        for m in message_list:
+            self.weibo_api.send_weibo(
+                f'''{escape_regular_text(m['name'])}
+
+                {m['text']}
+                ''',
+                m['media_path'].split(','), # TODO: 不支持视频，需要额外检查
+            )
+            # TODO: time.sleep() ?
 
     def _bot_controller(self, twitters: List[dict]):
 
