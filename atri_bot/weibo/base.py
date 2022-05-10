@@ -110,7 +110,7 @@ class WeiboAPIBase:
         self._config_update_time = datetime.datetime.now()
         return self._config
 
-    def _get_config():
+    def _get_config(self):
         raise NotImplementedError()
 
     def init_session(self, timeout: int = 10, proxies: Optional[Dict[str, str]] = None):
