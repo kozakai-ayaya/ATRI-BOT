@@ -21,12 +21,13 @@ from atri_bot.twitter.tw import start_observe_tweets, get_users, escape_regular_
 from atri_bot.weibo import WeiboAPI
 from data_processing.common.Riko import Riko
 from data_processing.common.connect import Connect
-from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH, WEIBO_COOKIES_PATH
+from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH, \
+    WEIBO_COOKIES_PATH, WEIBO_COOKIES
 
 
 class ProcessingCore(object):
     def __init__(self):
-        with open("atri_bot_db.json", "r") as file:
+        with open("data_processing/atri_bot_db.json", "r") as file:
             config = json.loads(file.read())
         config["cursorclass"] = pymysql.cursors.DictCursor
         Riko.db_config = config
@@ -37,7 +38,8 @@ class ProcessingCore(object):
         self.need_update_spider_user_list = list()
         self.error_user_list = list()
         self._init_start_user_list()
-        
+
+        WeiboAPI.load_from_cookies_str(WEIBO_COOKIES).save_cookies_object(WEIBO_COOKIES_PATH)
         self.weibo_api = WeiboAPI.load_from_cookies_object(WEIBO_COOKIES_PATH)
 
     def bot_star(self):
@@ -61,7 +63,7 @@ class ProcessingCore(object):
 
     def _read_user_list_in_txt(self) -> list:
         text_spider_user_list = []
-        with open("spider_user.txt") as file:
+        with open("data_processing/spider_user.txt") as file:
             for text in file.readlines():
                 user_name = text.replace("@", "").replace("\n", "")
                 text_spider_user_list.append(user_name)
@@ -223,7 +225,7 @@ class ProcessingCore(object):
             except pymysql.err.IntegrityError:
                 continue
 
-    def update_send_message_status(self, message_status: List[dict]) -> None:
+    def _update_send_message_status(self, message_status: List[dict]) -> None:
         for status_dict in message_status:
             self.connect.update_message_info_by_tid_and_update(
                 tid=status_dict.get("tid"),
@@ -236,16 +238,33 @@ class ProcessingCore(object):
 
     def send_message(self):
         message_list = self.connect.get_message_info_by_status(status=0)
+        message_status_list = list()
 
         for m in message_list:
-            self.weibo_api.send_weibo(
-                f'''{escape_regular_text(m['name'])}
+            try:
+                self.weibo_api.send_weibo(
+                    f'''{escape_regular_text(m['name'])}
 
-                {m['text']}
-                ''',
-                m['media_path'].split(','), # TODO: 不支持视频，需要额外检查
-            )
+                                {m['text']}
+                                ''',
+                    m['media_path'].split(','),  # TODO: 不支持视频，需要额外检查
+                )
+                message_status_list.append({
+                    "tid": m["tid"],
+                    "status": 1
+                })
+                time.sleep(60)
+            except Exception as err:
+                message_status_list.append({
+                    "tid": m["tid"],
+                    "status": -1
+                })
+                print(err)
+                continue
             # TODO: time.sleep() ?
+
+        self._update_send_message_status(message_status_list)
+
 
     def _bot_controller(self, twitters: List[dict]):
 

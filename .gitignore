@@ -154,3 +154,5 @@ cython_debug/
 */twitter/config.py
 /data_processing/atri_bot_db.json
 /data_processing/spider_user.txt
+/atri_bot/cookies.txt
+/atri_bot/cookies

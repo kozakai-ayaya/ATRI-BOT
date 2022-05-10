@@ -18,4 +18,5 @@ HEADERS = {
                 "Chrome/95.0.4638.54 Safari/537.36"
         }
 
-WEIBO_COOKIES_PATH = '/path/to/cookies'
+WEIBO_COOKIES_PATH = ""
+WEIBO_COOKIES = ""
