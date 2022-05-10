@@ -213,8 +213,8 @@ class ProcessingCore(object):
                     time=text_info.get("created_at"),
                     tiw_url=twitter_url,
                     tag=self._check_hashtag(text_info.get("hashtags")),
-                    media_url=str(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
-                    media_key=str(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
+                    media_url=','.join(self._get_media_url_info(text_info.get("media"), "url"))[1: -1],
+                    media_key=','.join(self._get_media_url_info(text_info.get("media"), "type"))[1: -1],
                     media_path=','.join(self._save_media_file(
                         self._get_media_url_info(text_info.get("media"), "url"),
                         self._get_media_url_info(text_info.get("media"), "type"))
