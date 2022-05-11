@@ -31,6 +31,14 @@ from data_processing.common.setting import (
     WEIBO_COOKIES,
 )
 
+WEIBO_TEMPLATE = '''{name}
+(a){username}
+{created_at}
+
+{text}
+
+{url}'''
+
 
 class ProcessingCore(object):
     def __init__(self):
@@ -289,8 +297,12 @@ class ProcessingCore(object):
         for m in message_list:
             try:
                 self.weibo_api.send_weibo(
-                    f"""{m.get("name")}\n{escape_regular_text("@" + m.get("username"))}\n{m.get("time")}\n\n{m['text']}\n\ntwi:{m["tiw_url"]}
-                        """,
+                    WEIBO_TEMPLATE.format_map(
+                        name=m['name'],
+                        username=escape_regular_text(m['username']),
+                        create_at=m['time'].strftime('%Y-%m-%d %H:%M:%S'),
+                        text=m['text'],
+                    ),
                     m["media_path"].split(","),  # TODO: 不支持视频，需要额外检查
                 )
                 message_status_list.append({"tid": m["tid"], "status": 1})
