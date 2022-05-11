@@ -4,8 +4,8 @@ class BaseError(Exception):
 
 class AuthException(BaseError):
     def __repr__(self):
-        return '''Authentication failed!
-        This exception may be caused by expired cookies. Please refresh the cookies and try again.'''
+        return """Authentication failed!
+        This exception may be caused by expired cookies. Please refresh the cookies and try again."""
 
     __str__ = __repr__
 
@@ -18,7 +18,9 @@ class UnexpectedResponseException(BaseError):
         self.res = res
 
     def __repr__(self):
-        return 'Get an unexpected response when visit url [{res.url}]' \
-               'the response body is [{res.text}]'.format(res=self.res)
+        return (
+            "Get an unexpected response when visit url [{res.url}]"
+            "the response body is [{res.text}]".format(res=self.res)
+        )
 
     __str__ = __repr__

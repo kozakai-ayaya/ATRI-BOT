@@ -28,13 +28,14 @@ class Riko:
     """
     Define default database config here
     """
+
     db_config = {
-        'host': 'localhost',
-        'port': 3306,
-        'user': 'root',
-        'password': '123456',
-        'database': 'test',
-        'autocommit': True
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "123456",
+        "database": "test",
+        "autocommit": True,
     }
 
     @staticmethod
@@ -110,9 +111,9 @@ class AbstractModel(metaclass=ABCMeta):
             for (k, v) in terms.items():
                 if _datetime_dump:
                     if isinstance(v, dt):
-                        v = v.strftime('%Y-%m-%d %H:%M:%S')
+                        v = v.strftime("%Y-%m-%d %H:%M:%S")
                     elif isinstance(v, date):
-                        v = v.strftime('%Y-%m-%d')
+                        v = v.strftime("%Y-%m-%d")
                 des_obj.set_value(k, v)
         return des_obj
 
@@ -224,7 +225,12 @@ class AbstractModel(metaclass=ABCMeta):
                 created.set_value(k, v)
         return created
 
-    def insert(self, t=None, on_duplicate_key_replace=INSERT.DUPLICATE_KEY_EXCEPTION, **duplicate_key_update_term):
+    def insert(
+        self,
+        t=None,
+        on_duplicate_key_replace=INSERT.DUPLICATE_KEY_EXCEPTION,
+        **duplicate_key_update_term
+    ):
         """
         Insert this object into DB.
         :param t transaction connection object
@@ -251,13 +257,15 @@ class AbstractModel(metaclass=ABCMeta):
             duplicate_key_update_term = {}
         elif on_duplicate_key_replace == INSERT.DUPLICATE_KEY_EXCEPTION:
             duplicate_key_update_term = {}
-        re_affect_id = (SingleInsertQuery(self.__class__)
-                        .set_session(model_db_conf=self._DB_CONF, dbi=t)
-                        .ignore(is_ignore)
-                        .replace(is_replace)
-                        .on_duplicate_key_update(**duplicate_key_update_term)
-                        .values(**insert_dict)
-                        .go(return_last_id=True if auto_key is not None else False))
+        re_affect_id = (
+            SingleInsertQuery(self.__class__)
+            .set_session(model_db_conf=self._DB_CONF, dbi=t)
+            .ignore(is_ignore)
+            .replace(is_replace)
+            .on_duplicate_key_update(**duplicate_key_update_term)
+            .values(**insert_dict)
+            .go(return_last_id=True if auto_key is not None else False)
+        )
         if auto_key is not None and self.get_ak() is None:
             self.set_ak(re_affect_id)
         return re_affect_id
@@ -268,10 +276,12 @@ class AbstractModel(metaclass=ABCMeta):
         :param t transaction connection object
         :return: affected row count
         """
-        return (DeleteQuery(self.__class__)
-                .set_session(model_db_conf=self._DB_CONF, dbi=t)
-                .where(**self.get_pk())
-                .go())
+        return (
+            DeleteQuery(self.__class__)
+            .set_session(model_db_conf=self._DB_CONF, dbi=t)
+            .where(**self.get_pk())
+            .go()
+        )
 
     def update(self, ignore_columns=None, t=None):
         """
@@ -301,11 +311,13 @@ class AbstractModel(metaclass=ABCMeta):
         for k in self.columns():
             if k not in ignore_columns:
                 update_field_dict[k] = self.get_value(k)
-        return (UpdateQuery(self.__class__)
-                .set_session(model_db_conf=self._DB_CONF, dbi=t)
-                .set(**update_field_dict)
-                .where(**self.get_pk())
-                .go())
+        return (
+            UpdateQuery(self.__class__)
+            .set_session(model_db_conf=self._DB_CONF, dbi=t)
+            .set(**update_field_dict)
+            .where(**self.get_pk())
+            .go()
+        )
 
     @classmethod
     def count(cls, t=None, _where_raw=None, _args=None, **_where_terms):
@@ -317,8 +329,14 @@ class AbstractModel(metaclass=ABCMeta):
         :param _where_terms: where condition terms, only equal condition support only, combined with `AND`
         :return: a number of count result
         """
-        cnt_ret = cls.get(t=t, return_columns=("count(1)",), _where_raw=_where_raw,
-                          _args=_args, _parse_model=False, **_where_terms)
+        cnt_ret = cls.get(
+            t=t,
+            return_columns=("count(1)",),
+            _where_raw=_where_raw,
+            _args=_args,
+            _parse_model=False,
+            **_where_terms
+        )
         if len(cnt_ret) > 0:
             return cnt_ret[0]["count(1)"]
         else:
@@ -360,7 +378,9 @@ class AbstractModel(metaclass=ABCMeta):
         :param t: connection context, None to use default
         :param return_columns: return columns tuple, None to return all fields in mapping table
         """
-        return SelectQuery(cls, return_columns).set_session(model_db_conf=cls._DB_CONF, dbi=t)
+        return SelectQuery(cls, return_columns).set_session(
+            model_db_conf=cls._DB_CONF, dbi=t
+        )
 
     @classmethod
     def select_query(cls, t=None, return_columns=None):
@@ -404,8 +424,20 @@ class AbstractModel(metaclass=ABCMeta):
         return BatchInsertQuery(cls).set_session(model_db_conf=cls._DB_CONF, dbi=t)
 
     @classmethod
-    def get_many(cls, t=None, return_columns=None, _where_raw=None, _limit=None, _offset=None,
-                 _order=None, _args=None, _parse_model=True, for_update=False, _datetime_dump=True, **_where_terms):
+    def get_many(
+        cls,
+        t=None,
+        return_columns=None,
+        _where_raw=None,
+        _limit=None,
+        _offset=None,
+        _order=None,
+        _args=None,
+        _parse_model=True,
+        for_update=False,
+        _datetime_dump=True,
+        **_where_terms
+    ):
         """
         Get objects satisfied given conditions. Alias for `get`.
         :param t: connection context, None to use default
@@ -421,13 +453,35 @@ class AbstractModel(metaclass=ABCMeta):
         :param _where_terms: where condition terms, only equal condition support only, combined with `AND`
         :return: query result in the form of `_parse_model` pattern, default by a list of ORM models
         """
-        return cls.get(t=t, return_columns=return_columns, _where_raw=_where_raw, _limit=_limit, _offset=_offset,
-                       _order=_order, _args=_args, _parse_model=_parse_model, for_update=for_update,
-                       _datetime_dump=_datetime_dump, **_where_terms)
+        return cls.get(
+            t=t,
+            return_columns=return_columns,
+            _where_raw=_where_raw,
+            _limit=_limit,
+            _offset=_offset,
+            _order=_order,
+            _args=_args,
+            _parse_model=_parse_model,
+            for_update=for_update,
+            _datetime_dump=_datetime_dump,
+            **_where_terms
+        )
 
     @classmethod
-    def get(cls, t=None, return_columns=None, _where_raw=None, _limit=None, _offset=None,
-            _order=None, _args=None, _parse_model=True, for_update=False, _datetime_dump=True, **_where_terms):
+    def get(
+        cls,
+        t=None,
+        return_columns=None,
+        _where_raw=None,
+        _limit=None,
+        _offset=None,
+        _order=None,
+        _args=None,
+        _parse_model=True,
+        for_update=False,
+        _datetime_dump=True,
+        **_where_terms
+    ):
         """
         Get objects satisfied given conditions.
         :param t: connection context, None to use default
@@ -443,16 +497,33 @@ class AbstractModel(metaclass=ABCMeta):
         :param _where_terms: where condition te rms, only equal condition support only, combined with `AND`
         :return: query result in the form of `_parse_model` pattern, default by a list of ORM models
         """
-        return (SelectQuery(cls, columns=return_columns, limit=_limit, offset=_offset, order_by=_order)
-                .set_session(model_db_conf=cls._DB_CONF, dbi=t)
-                .where_raw(*_where_raw if _where_raw else [])
-                .where(**_where_terms)
-                .for_update(for_update)
-                .get(args=_args, _datetime_dump=_datetime_dump, parse_model=_parse_model))
+        return (
+            SelectQuery(
+                cls,
+                columns=return_columns,
+                limit=_limit,
+                offset=_offset,
+                order_by=_order,
+            )
+            .set_session(model_db_conf=cls._DB_CONF, dbi=t)
+            .where_raw(*_where_raw if _where_raw else [])
+            .where(**_where_terms)
+            .for_update(for_update)
+            .get(args=_args, _datetime_dump=_datetime_dump, parse_model=_parse_model)
+        )
 
     @classmethod
-    def get_one(cls, t=None, return_columns=None, _where_raw=None, _args=None, _parse_model=True,
-                for_update=False, _datetime_dump=True, **_where_terms):
+    def get_one(
+        cls,
+        t=None,
+        return_columns=None,
+        _where_raw=None,
+        _args=None,
+        _parse_model=True,
+        for_update=False,
+        _datetime_dump=True,
+        **_where_terms
+    ):
         """
         Get one object satisfied given conditions if exists, otherwise return `None`.
         :param t: connection context, None to use default
@@ -465,13 +536,15 @@ class AbstractModel(metaclass=ABCMeta):
         :param _where_terms: where condition terms, only equal condition support only, combined with `AND`
         :return: a ORM model object, or None if not found
         """
-        return (SelectQuery(cls, columns=return_columns)
-                .set_session(model_db_conf=cls._DB_CONF, dbi=t)
-                .where_raw(*_where_raw if _where_raw else [])
-                .where(**_where_terms)
-                .limit(1)
-                .for_update(for_update)
-                .only(args=_args, _datetime_dump=_datetime_dump, parse_model=_parse_model))
+        return (
+            SelectQuery(cls, columns=return_columns)
+            .set_session(model_db_conf=cls._DB_CONF, dbi=t)
+            .where_raw(*_where_raw if _where_raw else [])
+            .where(**_where_terms)
+            .limit(1)
+            .for_update(for_update)
+            .only(args=_args, _datetime_dump=_datetime_dump, parse_model=_parse_model)
+        )
 
 
 class SqlQuery(metaclass=ABCMeta):
@@ -561,17 +634,22 @@ FROM {{__RIKO_TABLE__}}
         try:
             raw_result = self._dbi.query(self._sql, self._args)
             if parse_model:
-                return [self._clz_meta.deserialize(db_conf=self._dbi.get_config(),
-                                                   _datetime_dump=_datetime_dump, **kvt)
-                        for kvt in raw_result]
+                return [
+                    self._clz_meta.deserialize(
+                        db_conf=self._dbi.get_config(),
+                        _datetime_dump=_datetime_dump,
+                        **kvt
+                    )
+                    for kvt in raw_result
+                ]
             else:
                 if _datetime_dump:
                     for raw_item in raw_result:
                         for (k, v) in raw_item.items():
                             if isinstance(v, dt):
-                                raw_item[k] = v.strftime('%Y-%m-%d %H:%M:%S')
+                                raw_item[k] = v.strftime("%Y-%m-%d %H:%M:%S")
                             elif isinstance(v, date):
-                                raw_item[k] = v.strftime('%Y-%m-%d')
+                                raw_item[k] = v.strftime("%Y-%m-%d")
                 return raw_result
         finally:
             if self._temporary_dbi:
@@ -598,13 +676,16 @@ FROM {{__RIKO_TABLE__}}
                     for (k, v) in ret_raw.items():
                         if _datetime_dump:
                             if isinstance(v, dt):
-                                ret_raw[k] = v.strftime('%Y-%m-%d %H:%M:%S')
+                                ret_raw[k] = v.strftime("%Y-%m-%d %H:%M:%S")
                             elif isinstance(v, date):
-                                ret_raw[k] = v.strftime('%Y-%m-%d')
+                                ret_raw[k] = v.strftime("%Y-%m-%d")
                 return ret_raw
             else:
-                return self._clz_meta.deserialize(db_conf=self._dbi.get_config(),
-                                                  _datetime_dump=_datetime_dump, **ret_raw)
+                return self._clz_meta.deserialize(
+                    db_conf=self._dbi.get_config(),
+                    _datetime_dump=_datetime_dump,
+                    **ret_raw
+                )
         finally:
             if self._temporary_dbi:
                 self._dbi.close()
@@ -621,9 +702,13 @@ FROM {{__RIKO_TABLE__}}
             self._args.update(args)
         try:
             if self._is_batch is False:
-                return self._dbi.query(self._sql, self._args,
-                                       return_pattern=DBI.RETURN_AFFECTED_ROW
-                                       if return_last_id is False else DBI.RETURN_LAST_ROW_ID)
+                return self._dbi.query(
+                    self._sql,
+                    self._args,
+                    return_pattern=DBI.RETURN_AFFECTED_ROW
+                    if return_last_id is False
+                    else DBI.RETURN_LAST_ROW_ID,
+                )
             else:
                 return self._dbi.insert_many(self._sql, self._args)
         finally:
@@ -728,7 +813,9 @@ class ConditionQuery(SqlQuery):
                 current_term_list = list()
                 for val_item in in_val:
                     current_term_list.append("'%s'" % val_item)
-                in_term_list.append(in_key + " IN (" + ",".join(current_term_list) + ")")
+                in_term_list.append(
+                    in_key + " IN (" + ",".join(current_term_list) + ")"
+                )
             in_term += " AND ".join(in_term_list)
         not_term = ""
         if len(self._where_not_in) > 0:
@@ -737,7 +824,9 @@ class ConditionQuery(SqlQuery):
                 current_term_list = list()
                 for val_item in not_val:
                     current_term_list.append("'%s'" % val_item)
-                not_term_list.append(not_key + " NOT IN (" + ",".join(current_term_list) + ")")
+                not_term_list.append(
+                    not_key + " NOT IN (" + ",".join(current_term_list) + ")"
+                )
             not_term += " AND ".join(not_term_list)
         if in_term != "":
             self._where.append(in_term)
@@ -887,9 +976,11 @@ class InsertQuery(SqlQuery):
         return ", ".join(self._insert_fields)
 
     def _construct_on_duplicate_key_update_clause(self):
-        if self._on_duplicate_key_ignore is True or \
-                self._on_duplicate_key_replace is True or \
-                len(self._duplicate_update) == 0:
+        if (
+            self._on_duplicate_key_ignore is True
+            or self._on_duplicate_key_replace is True
+            or len(self._duplicate_update) == 0
+        ):
             return ""
         return "ON DUPLICATE KEY UPDATE " + ", ".join(self._duplicate_update)
 
@@ -940,7 +1031,7 @@ class SingleInsertQuery(InsertQuery):
             SqlQuery._KW_TABLE: self._clz_meta.__name__,
             SqlQuery._KW_FIELDS: self._construct_insert_fields_clause(),
             SqlQuery._KW_VALUES: self._construct_insert_values_clause(),
-            SqlQuery._KW_ON_DUPLICATE_KEY_UPDATE: self._construct_on_duplicate_key_update_clause()
+            SqlQuery._KW_ON_DUPLICATE_KEY_UPDATE: self._construct_on_duplicate_key_update_clause(),
         }
         self._sql = SqlRender.render(self._sql, r_dict)
 
@@ -1001,7 +1092,7 @@ class BatchInsertQuery(InsertQuery):
             SqlQuery._KW_TABLE: self._clz_meta.__name__,
             SqlQuery._KW_FIELDS: self._construct_insert_fields_clause(),
             SqlQuery._KW_VALUES: self._construct_insert_values_clause(),
-            SqlQuery._KW_ON_DUPLICATE_KEY_UPDATE: self._construct_on_duplicate_key_update_clause()
+            SqlQuery._KW_ON_DUPLICATE_KEY_UPDATE: self._construct_on_duplicate_key_update_clause(),
         }
         self._args = self._insert_value_tuples
         self._sql = SqlRender.render(self._sql, r_dict)
@@ -1015,7 +1106,7 @@ class DeleteQuery(ConditionQuery):
         self._sql = SqlQuery._Delete_Template
         r_dict = {
             SqlQuery._KW_TABLE: self._clz_meta.__name__,
-            SqlQuery._KW_WHERE: self._construct_where_clause()
+            SqlQuery._KW_WHERE: self._construct_where_clause(),
         }
         self._sql = SqlRender.render(self._sql, r_dict)
 
@@ -1052,13 +1143,15 @@ class UpdateQuery(ConditionQuery):
         r_dict = {
             SqlQuery._KW_TABLE: self._clz_meta.__name__,
             SqlQuery._KW_WHERE: self._construct_where_clause(),
-            SqlQuery._KW_FIELDS: self._construct_update_set_clause()
+            SqlQuery._KW_FIELDS: self._construct_update_set_clause(),
         }
         self._sql = SqlRender.render(self._sql, r_dict)
 
 
 class SelectQuery(PaginationOrderQuery):
-    def __init__(self, clazz, columns=None, where=None, limit=None, offset=None, order_by=None):
+    def __init__(
+        self, clazz, columns=None, where=None, limit=None, offset=None, order_by=None
+    ):
         super().__init__(clazz, where, limit, offset, order_by)
         self._return_columns = list() if columns is None else list(columns)
         self._distinct = False
@@ -1100,12 +1193,16 @@ class SelectQuery(PaginationOrderQuery):
         :param join_clazz: `type` of another ORM model to be joined.
         :param alias: alias for another model
         """
-        actual_join_term = join_clazz.__name__ + (" AS " + alias if alias is not None else "")
+        actual_join_term = join_clazz.__name__ + (
+            " AS " + alias if alias is not None else ""
+        )
         self._join.append(actual_join_term)
         self._join_type[actual_join_term] = "NATURAL"
         return self
 
-    def join(self, join_clazz, join_mode=JOIN.INNER_JOIN, alias=None, on=None, **on_terms):
+    def join(
+        self, join_clazz, join_mode=JOIN.INNER_JOIN, alias=None, on=None, **on_terms
+    ):
         """
         Perform join to another table.
         :param join_mode: which join pattern to be performed, default INNER JOIN
@@ -1184,7 +1281,9 @@ class SelectQuery(PaginationOrderQuery):
         return self
 
     def __handle_join(self, join_type, join_clazz, alias=None, on=None, **on_terms):
-        actual_join_term = join_clazz.__name__ + (" AS " + alias if alias is not None else "")
+        actual_join_term = join_clazz.__name__ + (
+            " AS " + alias if alias is not None else ""
+        )
         self._join.append(actual_join_term)
         self._join_on[actual_join_term] = list()
         if on is not None:
@@ -1193,13 +1292,19 @@ class SelectQuery(PaginationOrderQuery):
             else:
                 self._join_on[actual_join_term].append(str(on))
         for (k, v) in on_terms.items():
-            self._join_on[actual_join_term].append(k + " = %(__RIKO_" + join_type + "_ON_" + k + ")s")
+            self._join_on[actual_join_term].append(
+                k + " = %(__RIKO_" + join_type + "_ON_" + k + ")s"
+            )
             self._args["__RIKO_" + join_type + "_ON_" + k] = v
         self._join_type[actual_join_term] = join_type
         return self
 
     def _construct_alias_table_clause(self):
-        return self._clz_meta.__name__ if self._alias is None else (self._clz_meta.__name__ + " AS " + str(self._alias))
+        return (
+            self._clz_meta.__name__
+            if self._alias is None
+            else (self._clz_meta.__name__ + " AS " + str(self._alias))
+        )
 
     def _construct_distinct_clause(self):
         return "DISTINCT" if self._distinct else ""
@@ -1228,11 +1333,26 @@ class SelectQuery(PaginationOrderQuery):
             if self._join_type[join_term] == "NATURAL":
                 join_clause += " NATURAL JOIN " + join_term
             elif self._join_type[join_term] == "INNER":
-                join_clause += " JOIN " + join_term + " ON " + " AND ".join(self._join_on[join_term])
+                join_clause += (
+                    " JOIN "
+                    + join_term
+                    + " ON "
+                    + " AND ".join(self._join_on[join_term])
+                )
             elif self._join_type[join_term] == "LEFT":
-                join_clause += " LEFT JOIN " + join_term + " ON " + " AND ".join(self._join_on[join_term])
+                join_clause += (
+                    " LEFT JOIN "
+                    + join_term
+                    + " ON "
+                    + " AND ".join(self._join_on[join_term])
+                )
             elif self._join_type[join_term] == "RIGHT":
-                join_clause += " RIGHT JOIN " + join_term + " ON " + " AND ".join(self._join_on[join_term])
+                join_clause += (
+                    " RIGHT JOIN "
+                    + join_term
+                    + " ON "
+                    + " AND ".join(self._join_on[join_term])
+                )
         return join_clause
 
     def _prepare_sql(self):
@@ -1360,6 +1480,7 @@ class DBI:
     """
     DB connection session.
     """
+
     RETURN_NONE = 0
     RETURN_CURSOR = 1
     RETURN_RESULT = 2

@@ -12,8 +12,23 @@ from data_processing.common.Riko import DictModel
 
 class message(DictModel):
     pk = ["tid"]
-    fields = ["uid", "name", "username", "text", "time", "tiw_url", "tag", "media_url", "media_key", "media_type",
-              "media_path", "status", "send_time", "enter_time", "error_message"]
+    fields = [
+        "uid",
+        "name",
+        "username",
+        "text",
+        "time",
+        "tiw_url",
+        "tag",
+        "media_url",
+        "media_key",
+        "media_type",
+        "media_path",
+        "status",
+        "send_time",
+        "enter_time",
+        "error_message",
+    ]
 
 
 class spider_user(DictModel):
@@ -23,8 +38,16 @@ class spider_user(DictModel):
 
 class user(DictModel):
     pk = ["uid"]
-    fields = ["name", "username", "description", "profile_image_url", "profile_image_path", "add_time", "update_time",
-              "last_check_time"]
+    fields = [
+        "name",
+        "username",
+        "description",
+        "profile_image_url",
+        "profile_image_path",
+        "add_time",
+        "update_time",
+        "last_check_time",
+    ]
 
 
 class Connect(object):
@@ -37,7 +60,11 @@ class Connect(object):
 
     @staticmethod
     def get_message_info_by_status(status: int):
-        get_info = message.select().where_raw("status = %(input_status)s").get({"input_status": status})
+        get_info = (
+            message.select()
+            .where_raw("status = %(input_status)s")
+            .get({"input_status": status})
+        )
         return get_info
 
     @staticmethod
@@ -47,24 +74,33 @@ class Connect(object):
 
     @staticmethod
     def get_message_info_by_username_and_status(username: str, status: int):
-        get_info = message.select() \
-            .where_raw("username = %(input_username)s AND status = %(input_status)s") \
+        get_info = (
+            message.select()
+            .where_raw("username = %(input_username)s AND status = %(input_status)s")
             .get({"input_username": username, "input_status": status})
+        )
         return get_info
 
     @staticmethod
     def update_message_info_by_tid_and_update(tid: str, status: int, info_dict: dict):
-        new_info = message.select() \
-            .where_raw("status = %(input_status)s").get({"input_status": status})
+        new_info = (
+            message.select()
+            .where_raw("status = %(input_status)s")
+            .get({"input_status": status})
+        )
         for k, v in info_dict.items():
             new_info[k] = v
         new_info.update()
 
     @staticmethod
-    def update_message_info_by_username_and_status(username: str, status: int, info_dict: dict):
-        new_info = message.select() \
-            .where_raw("username = %(input_username)s AND status = %(input_status)s") \
+    def update_message_info_by_username_and_status(
+        username: str, status: int, info_dict: dict
+    ):
+        new_info = (
+            message.select()
+            .where_raw("username = %(input_username)s AND status = %(input_status)s")
             .get({"input_username": username, "input_status": status})
+        )
         for k, v in info_dict.items():
             new_info[k] = v
         new_info.update()

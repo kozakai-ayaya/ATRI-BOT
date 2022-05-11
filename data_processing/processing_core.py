@@ -21,8 +21,15 @@ from atri_bot.twitter.tw import start_observe_tweets, get_users, escape_regular_
 from atri_bot.weibo import WeiboAPI
 from data_processing.common.Riko import Riko
 from data_processing.common.connect import Connect
-from data_processing.common.setting import PROFILE_IMAGE_PATH, TWITTER_URL, HEADERS, MEDIA_IMAGE_PATH, MEDIA_VIDEO_PATH, \
-    WEIBO_COOKIES_PATH, WEIBO_COOKIES
+from data_processing.common.setting import (
+    PROFILE_IMAGE_PATH,
+    TWITTER_URL,
+    HEADERS,
+    MEDIA_IMAGE_PATH,
+    MEDIA_VIDEO_PATH,
+    WEIBO_COOKIES_PATH,
+    WEIBO_COOKIES,
+)
 
 
 class ProcessingCore(object):
@@ -39,12 +46,16 @@ class ProcessingCore(object):
         self.error_user_list = list()
         self._init_start_user_list()
 
-        WeiboAPI.load_from_cookies_str(WEIBO_COOKIES).save_cookies_object(WEIBO_COOKIES_PATH)
+        WeiboAPI.load_from_cookies_str(WEIBO_COOKIES).save_cookies_object(
+            WEIBO_COOKIES_PATH
+        )
         self.weibo_api = WeiboAPI.load_from_cookies_object(WEIBO_COOKIES_PATH)
 
     def bot_star(self):
-        start_observe_tweets(usernames=self.spider_user_list,
-                             callback=lambda twitters: self._bot_controller(twitters))
+        start_observe_tweets(
+            usernames=self.spider_user_list,
+            callback=lambda twitters: self._bot_controller(twitters),
+        )
 
     def _init_start_user_list(self) -> None:
         need_update_list = self._get_need_update_spider()
@@ -80,10 +91,15 @@ class ProcessingCore(object):
                     continue
 
                 if key == "username":
-                    self.connect.update_spider_user_info(username=user_info[key], info_dict={"username": check_user_info_list.get(key)})
+                    self.connect.update_spider_user_info(
+                        username=user_info[key],
+                        info_dict={"username": check_user_info_list.get(key)},
+                    )
 
                 if key == "profile_image_url":
-                    change_dict[key] = self._save_profile_image(check_user_info_list[key])
+                    change_dict[key] = self._save_profile_image(
+                        check_user_info_list[key]
+                    )
 
                 change_dict[key] = check_user_info_list.get(key)
 
@@ -95,17 +111,29 @@ class ProcessingCore(object):
 
     def _get_need_update_spider(self) -> list:
         need_update_spider_user_list = []
-        spider_user_info_in_db = [db_info["username"] for db_info in self.connect.get_spider_user_info()]
+        spider_user_info_in_db = [
+            db_info["username"] for db_info in self.connect.get_spider_user_info()
+        ]
         user_info_in_db = [db_info["uid"] for db_info in self.connect.get_user_info()]
 
         if len(spider_user_info_in_db) != 0:
             for username in spider_user_info_in_db:
-                update_dict = {"last_check_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}
-                self.connect.update_spider_user_info(username=username, info_dict=update_dict)
+                update_dict = {
+                    "last_check_time": time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+                    )
+                }
+                self.connect.update_spider_user_info(
+                    username=username, info_dict=update_dict
+                )
 
         if len(user_info_in_db) != 0:
             for uid in user_info_in_db:
-                update_dict = {"last_check_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}
+                update_dict = {
+                    "last_check_time": time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+                    )
+                }
                 self.connect.update_user_info(uid=uid, info_dict=update_dict)
 
         for spider_user_info in self._read_user_list_in_txt():
@@ -137,7 +165,9 @@ class ProcessingCore(object):
                 continue
 
             if media_type_list[flag] == "photo":
-                image_path = os.path.join(MEDIA_IMAGE_PATH, media_url_list[flag].split('/')[-1])
+                image_path = os.path.join(
+                    MEDIA_IMAGE_PATH, media_url_list[flag].split("/")[-1]
+                )
                 if request.status_code == 200:
                     with open(image_path, "wb") as file:
                         file.write(request.content)
@@ -171,7 +201,7 @@ class ProcessingCore(object):
         if hash_tag is None:
             return None
 
-        return str(hash_tag)[1: -1]
+        return str(hash_tag)[1:-1]
 
     def update_new_spider_user_info(self, users_list: list) -> None:
         users_info_list = get_users(users_list)
@@ -180,7 +210,9 @@ class ProcessingCore(object):
                 self.connect.insert_spider_user_info(
                     uid=user.get("id"),
                     username=user.get("username"),
-                    add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                    add_time=time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+                    ),
                 )
             except pymysql.err.IntegrityError:
                 pass
@@ -192,8 +224,12 @@ class ProcessingCore(object):
                     username=user.get("username"),
                     description=user.get("description"),
                     profile_image_url=user.get("profile_image_url"),
-                    profile_image_path=self._save_profile_image(user.get("profile_image_url")),
-                    add_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                    profile_image_path=self._save_profile_image(
+                        user.get("profile_image_url")
+                    ),
+                    add_time=time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+                    ),
                 )
 
             except pymysql.err.IntegrityError:
@@ -213,14 +249,22 @@ class ProcessingCore(object):
                     time=text_info.get("created_at"),
                     tiw_url=twitter_url,
                     tag=self._check_hashtag(text_info.get("hashtags")),
-                    media_url=','.join(self._get_media_url_info(text_info.get("media"), "url")),
-                    media_key=','.join(self._get_media_url_info(text_info.get("media"), "type")),
-                    media_path=','.join(self._save_media_file(
-                        self._get_media_url_info(text_info.get("media"), "url"),
-                        self._get_media_url_info(text_info.get("media"), "type"))
+                    media_url=",".join(
+                        self._get_media_url_info(text_info.get("media"), "url")
+                    ),
+                    media_key=",".join(
+                        self._get_media_url_info(text_info.get("media"), "type")
+                    ),
+                    media_path=",".join(
+                        self._save_media_file(
+                            self._get_media_url_info(text_info.get("media"), "url"),
+                            self._get_media_url_info(text_info.get("media"), "type"),
+                        )
                     ),
                     status=0,
-                    enter_time=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                    enter_time=time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+                    ),
                 )
             except pymysql.err.IntegrityError:
                 continue
@@ -232,8 +276,10 @@ class ProcessingCore(object):
                 status=0,
                 info_dict={
                     "status": status_dict.get("status"),
-                    "send_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-                }
+                    "send_time": time.strftime(
+                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
+                    ),
+                },
             )
 
     def send_message(self):
@@ -243,28 +289,19 @@ class ProcessingCore(object):
         for m in message_list:
             try:
                 self.weibo_api.send_weibo(
-                    f'''{escape_regular_text(m['name'])}
-
-                                {m['text']}
-                                ''',
-                    m['media_path'].split(','),  # TODO: 不支持视频，需要额外检查
+                    f"""{m.get("name")}\n{escape_regular_text("@" + m.get("username"))}\n{m.get("time")}\n\n{m['text']}\n\ntwi:{m["tiw_url"]}
+                        """,
+                    m["media_path"].split(","),  # TODO: 不支持视频，需要额外检查
                 )
-                message_status_list.append({
-                    "tid": m["tid"],
-                    "status": 1
-                })
+                message_status_list.append({"tid": m["tid"], "status": 1})
                 time.sleep(60)
             except Exception as err:
-                message_status_list.append({
-                    "tid": m["tid"],
-                    "status": -1
-                })
+                message_status_list.append({"tid": m["tid"], "status": -1})
                 print(err)
                 continue
             # TODO: time.sleep() ?
 
         self._update_send_message_status(message_status_list)
-
 
     def _bot_controller(self, twitters: List[dict]):
 
@@ -273,9 +310,11 @@ class ProcessingCore(object):
         if len(update_spider_user_list) != 0:
             self.update_new_spider_user_info(self.spider_user_list)
             self.need_update_spider_user_list = copy.deepcopy(update_spider_user_list)
-            start_observe_tweets(usernames=update_spider_user_list,
-                                 max_results=20,
-                                 callback=lambda twitter: self._bot_controller(twitter))
+            start_observe_tweets(
+                usernames=update_spider_user_list,
+                max_results=20,
+                callback=lambda twitter: self._bot_controller(twitter),
+            )
 
         if len(self.need_update_spider_user_list) != 0:
             self.spider_user_list.extend(self.need_update_spider_user_list)
@@ -284,10 +323,12 @@ class ProcessingCore(object):
         self.update_new_text_info(twitters)
         self.send_message()
 
-        start_observe_tweets(usernames=self.spider_user_list,
-                             interval=60,
-                             max_results=10,
-                             callback=lambda twitter: self._bot_controller(twitter))
+        start_observe_tweets(
+            usernames=self.spider_user_list,
+            interval=60,
+            max_results=10,
+            callback=lambda twitter: self._bot_controller(twitter),
+        )
 
     def error_user(self, error_user_list: list):
         pass

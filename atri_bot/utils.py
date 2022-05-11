@@ -20,8 +20,8 @@ class HTTPAdapter(requests.adapters.HTTPAdapter):
 
     def send(self, *args, **kwargs):
         # set timeout default value
-        if kwargs['timeout'] is None:
-            kwargs['timeout'] = self.timeout
+        if kwargs["timeout"] is None:
+            kwargs["timeout"] = self.timeout
         return super().send(*args, **kwargs)
 
 
@@ -106,9 +106,9 @@ def setup_logger(
 def get_stream_from_path_or_stream(path_or_stream: PathOrStream) -> IOBase:
     if isinstance(path_or_stream, (str, PathLike)):
         path = Path(path_or_stream)
-        stream = path.open('rb')
+        stream = path.open("rb")
     elif isinstance(path_or_stream, IOBase):
         stream = path_or_stream
     else:
-        raise TypeError(f'unknown input type {type(path_or_stream)}')
+        raise TypeError(f"unknown input type {type(path_or_stream)}")
     return stream
