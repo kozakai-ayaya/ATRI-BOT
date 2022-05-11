@@ -18,7 +18,7 @@ class message(DictModel):
         "username",
         "text",
         "time",
-        "tiw_url",
+        "twi_url",
         "tag",
         "media_url",
         "media_key",
@@ -82,12 +82,8 @@ class Connect(object):
         return get_info
 
     @staticmethod
-    def update_message_info_by_tid_and_update(tid: str, status: int, info_dict: dict):
-        new_info = (
-            message.select()
-            .where_raw("status = %(input_status)s")
-            .get({"input_status": status})
-        )
+    def update_message_info_by_tid(tid: str, info_dict: dict):
+        new_info = message.get_one(tid=tid)
         for k, v in info_dict.items():
             new_info[k] = v
         new_info.update()

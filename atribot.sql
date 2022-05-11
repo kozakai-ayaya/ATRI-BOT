@@ -28,7 +28,7 @@ CREATE TABLE `message` (
   `username` varchar(255) DEFAULT NULL,
   `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `time` datetime DEFAULT NULL,
-  `tiw_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `twi_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `tag` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `media_url` varchar(255) DEFAULT NULL,
   `media_key` varchar(255) DEFAULT NULL,

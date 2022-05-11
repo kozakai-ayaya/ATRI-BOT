@@ -10,6 +10,7 @@
 import copy
 import json
 import os
+import random
 import time
 
 from typing import List
@@ -31,13 +32,13 @@ from data_processing.common.setting import (
     WEIBO_COOKIES,
 )
 
-WEIBO_TEMPLATE = '''{name}
+WEIBO_TEMPLATE = """{name}
 (a){username}
 {created_at}
 
 {text}
 
-{url}'''
+{url}"""
 
 
 class ProcessingCore(object):
@@ -255,7 +256,7 @@ class ProcessingCore(object):
                     username=text_info.get("user").get("username"),
                     text=text_info.get("text"),
                     time=text_info.get("created_at"),
-                    tiw_url=twitter_url,
+                    twi_url=twitter_url,
                     tag=self._check_hashtag(text_info.get("hashtags")),
                     media_url=",".join(
                         self._get_media_url_info(text_info.get("media"), "url")
@@ -277,43 +278,54 @@ class ProcessingCore(object):
             except pymysql.err.IntegrityError:
                 continue
 
-    def _update_send_message_status(self, message_status: List[dict]) -> None:
-        for status_dict in message_status:
-            self.connect.update_message_info_by_tid_and_update(
-                tid=status_dict.get("tid"),
-                status=0,
-                info_dict={
-                    "status": status_dict.get("status"),
-                    "send_time": time.strftime(
-                        "%Y-%m-%d %H:%M:%S", time.localtime(time.time())
-                    ),
-                },
-            )
+    def _update_send_message_status(self, message_status: dict) -> None:
+
+        info_dict = {
+            "status": message_status.get("status"),
+            "send_time": time.strftime(
+                "%Y-%m-%d %H:%M:%S",
+                time.localtime(time.time()),
+            ),
+        }
+
+        if message_status.get("status") == -1:
+            info_dict["error_message"] = message_status.get("error_message")
+
+        self.connect.update_message_info_by_tid(
+            tid=message_status.get("tid"), info_dict=info_dict
+        )
 
     def send_message(self):
         message_list = self.connect.get_message_info_by_status(status=0)
-        message_status_list = list()
+        sleep_time = 1
 
         for m in message_list:
+            if len(message_list) > 1:
+                sleep_time = random.randint(60, 120)
+
             try:
                 self.weibo_api.send_weibo(
                     WEIBO_TEMPLATE.format_map(
-                        name=m['name'],
-                        username=escape_regular_text(m['username']),
-                        create_at=m['time'].strftime('%Y-%m-%d %H:%M:%S'),
-                        text=m['text'],
+                        {
+                            "name": m["name"],
+                            "username": escape_regular_text(m["username"]),
+                            "created_at": m["time"],
+                            "text": m["text"],
+                            "url": m["twi_url"],
+                        }
                     ),
-                    m["media_path"].split(","),  # TODO: 不支持视频，需要额外检查
+                    m.get['media_path'].split(',') if m['media_path'] else None,  # TODO: 不支持视频，需要额外检查
                 )
-                message_status_list.append({"tid": m["tid"], "status": 1})
-                time.sleep(60)
+                self._update_send_message_status({"tid": m["tid"], "status": 1})
             except Exception as err:
-                message_status_list.append({"tid": m["tid"], "status": -1})
                 print(err)
+                self._update_send_message_status(
+                    {"tid": m["tid"], "status": -1, "error_message": err}
+                )
                 continue
-            # TODO: time.sleep() ?
 
-        self._update_send_message_status(message_status_list)
+            time.sleep(sleep_time)
+            # TODO: time.sleep() ?
 
     def _bot_controller(self, twitters: List[dict]):
 
