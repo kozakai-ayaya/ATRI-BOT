@@ -307,18 +307,17 @@ class ProcessingCore(object):
                 self.weibo_api.send_weibo(
                     WEIBO_TEMPLATE.format_map(
                         {
-                            "name": m["name"],
-                            "username": escape_regular_text(m["username"]),
-                            "created_at": m["time"],
-                            "text": m["text"],
-                            "url": m["twi_url"],
+                            "name": m.get("name"),
+                            "username": escape_regular_text(m.get("username")),
+                            "created_at": m.get("time"),
+                            "text": m.get("text"),
+                            "url": m.get("twi_url"),
                         }
                     ),
-                    m.get['media_path'].split(',') if m['media_path'] else None,  # TODO: 不支持视频，需要额外检查
+                    m.get('media_path').split(',') if m.get('media_path') else None,  # TODO: 不支持视频，需要额外检查
                 )
                 self._update_send_message_status({"tid": m["tid"], "status": 1})
             except Exception as err:
-                print(err)
                 self._update_send_message_status(
                     {"tid": m["tid"], "status": -1, "error_message": err}
                 )
