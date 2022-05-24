@@ -12,6 +12,7 @@ import json
 import os
 import random
 import time
+import concurrent.futures
 
 from typing import List
 
@@ -59,6 +60,7 @@ class ProcessingCore(object):
             WEIBO_COOKIES_PATH
         )
         self.weibo_api = WeiboAPI.load_from_cookies_object(WEIBO_COOKIES_PATH)
+        self.executor = concurrent.futures.ThreadPoolExecutor(1) # WeiboAPI 不是线程安全的，不要调整worker数量
 
     def bot_star(self):
         start_observe_tweets(
@@ -297,34 +299,29 @@ class ProcessingCore(object):
 
     def send_message(self):
         message_list = self.connect.get_message_info_by_status(status=0)
-        sleep_time = 1
 
         for m in message_list:
-            if len(message_list) > 1:
-                sleep_time = random.randint(60, 120)
-
-            try:
-                self.weibo_api.send_weibo(
-                    WEIBO_TEMPLATE.format_map(
-                        {
-                            "name": m.get("name"),
-                            "username": escape_regular_text(m.get("username")),
-                            "created_at": m.get("time"),
-                            "text": m.get("text"),
-                            "url": m.get("twi_url"),
-                        }
-                    ),
-                    m.get('media_path').split(',') if m.get('media_path') else None,  # TODO: 不支持视频，需要额外检查
-                )
-                self._update_send_message_status({"tid": m["tid"], "status": 1})
-            except Exception as err:
-                self._update_send_message_status(
-                    {"tid": m["tid"], "status": -1, "error_message": err}
-                )
-                continue
-
-            time.sleep(sleep_time)
-            # TODO: time.sleep() ?
+            def run():
+                try:
+                    self.weibo_api.send_weibo(
+                        WEIBO_TEMPLATE.format_map(
+                            {
+                                "name": m.get("name"),
+                                "username": escape_regular_text(m.get("username")),
+                                "created_at": m.get("time"),
+                                "text": m.get("text"),
+                                "url": m.get("twi_url"),
+                            }
+                        ),
+                        m.get('media_path').split(',') if m.get('media_path') else None,  # TODO: 不支持视频，需要额外检查
+                    )
+                    self._update_send_message_status({"tid": m["tid"], "status": 1})
+                except Exception as err:
+                    self._update_send_message_status(
+                        {"tid": m["tid"], "status": -1, "error_message": err}
+                    )
+            
+            self.executor.submit(run)
 
     def _bot_controller(self, twitters: List[dict]):
 
